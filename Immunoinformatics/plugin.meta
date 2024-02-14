@@ -1,0 +1,10 @@
+{
+  "name": "Immunoinformatics",
+  "description": "The Immunoinformatics utilities plugin for Horus",
+  "author": "BSC",
+  "version": "0.0.1",
+  "pluginFile": "Immunoinformatics.py",
+  "dependencies": [
+
+  ]
+}
