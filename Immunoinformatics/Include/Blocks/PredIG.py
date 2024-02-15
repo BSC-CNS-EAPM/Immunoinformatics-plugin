@@ -18,30 +18,25 @@ inputTxtbox = PluginVariable(
     name="Input txtbox",
     id="input_txtbox",
     description="The input txt with the epitope and presenting HLA-I allele.",
-    type=VariableTypes.STRING,
+    type=VariableTypes.TEXT_AREA,
 )
-InputFolderVariableGroup = VariableGroup(
-    id="file_variable_group",
-    name="File variable group",
-    description="Input with the csv file format.",
-    variables=[inputCSV],
-)
-InputTxtVariableGroup = VariableGroup(
-    id="txt_variable_group",
-    name="TxtBox variable group",
-    description="Input with the txt format.",
-    variables=[inputTxtbox],
+modelVar = PluginVariable(
+    name="Model",
+    id="model",
+    description="The model path to use for the prediction",
+    type=VariableTypes.FILE,
+    allowedValues=["model"],
 )
 
 # ==========================#
 # Variable outputs
 # ==========================#
 outputTSV = PluginVariable(
-    name="Output TSV",
+    name="Output CSV",
     id="output_csv",
     description="The output tsv with the predicted binding affinity.",
     type=VariableTypes.FILE,
-    allowedValues=["tsv"],
+    allowedValues=["csv"],
 )
 
 ##############################
@@ -54,8 +49,13 @@ jobName = PluginVariable(
     type=VariableTypes.STRING,
     defaultValue="PredIG Job",
 )
-
-
+seed = PluginVariable(
+    name="Seed",
+    id="seed",
+    description="The seed for the random number generator.",
+    type=VariableTypes.INTEGER,
+    defaultValue=123,
+)
 
 # Align action block
 def runPredIG(block: PluginBlock):
@@ -67,6 +67,19 @@ predigBlock = PluginBlock(
     description="Predicts the binding affinity of an epitope to an HLA-I allele.",
     action=runPredIG,
     variables=[jobName],
-    inputs=[InputFolderVariableGroup, InputTxtVariableGroup],
+    inputGroups=[
+            VariableGroup(
+                id="file_variable_group",
+                name="File variable group",
+                description="Input with the csv file format.",
+                variables=[inputCSV],
+            ),
+            VariableGroup(
+                id="txt_variable_group",
+                name="TxtBox variable group",
+                description="Input with the txt format.",
+                variables=[inputTxtbox],
+            )
+    ],
     outputs=[outputTSV],
 )

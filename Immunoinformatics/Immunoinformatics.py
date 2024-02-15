@@ -11,18 +11,17 @@ def createPlugin():
     """
     # ========== Plugin Definition ========== #
 
-    ImmunoPlugin = Plugin(id="Immuno",)
+    immunoPlugin = Plugin(id="Immuno",)
 
     # ========== Blocks ========== #
-    #from Blocks.AlphaFoldEAPM import alphafoldBlock  # type: ignore
+    from Blocks.PredIG import predigBlock  # type: ignore
 
     # Add the block to the plugin
-    #frescoPlugin.addBlock(alphafoldBlock)
-
+    immunoPlugin.addBlock(predigBlock)
 
 
     # Return the plugin
-    return ImmunoPlugin
+    return immunoPlugin
 
 
 plugin = createPlugin()
