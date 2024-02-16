@@ -15,9 +15,19 @@ def createPlugin():
 
     # ========== Blocks ========== #
     from Blocks.PredIG import predigBlock  # type: ignore
-
-    # Add the block to the plugin
     immunoPlugin.addBlock(predigBlock)
+    
+    from Blocks.NOAH import noahBlock  # type: ignore
+    immunoPlugin.addBlock(noahBlock)
+    
+    from Blocks.NetCleave import netCleaveBlock  # type: ignore
+    immunoPlugin.addBlock(netCleaveBlock)
+    
+    # Add the configs
+    from Configs.noahConfig import noahExecutableConfig
+
+    immunoPlugin.addConfig(noahExecutableConfig)
+
 
 
     # Return the plugin

@@ -77,10 +77,11 @@ def runNOAH(block: PluginBlock):
       
     df = df[['peptide', 'allele']]
     df = df.rename(columns={'peptide': 'epitope', 'allele': 'hla_allele'})
+    df.to_csv("input_noah.csv", index=False)
 
     # Run the NOAH
     try:
-        subprocess.Popen(["python", noah_path, "-i", inputFile, "-m", model, "-o", "output_noah.csv"])
+        subprocess.Popen(["python", noah_path, "-i", "input_noah.csv", "-m", model, "-o", "output_noah.csv"])
     except Exception as e:
         raise(f"An error occurred while running the NOAH: {e}")
     
@@ -88,6 +89,9 @@ def runNOAH(block: PluginBlock):
         subprocess.Popen(["Rscript", noah_parser_path, "--input", "output_noah.csv", "--outdir", os.getcwd(), "--outname", "noah_output_parsed.csv"])
     except Exception as e:
         raise(f"An error occurred while running the NOAH parser: {e}")
+    
+    # Set output
+    block.outputs["output_csv"] = "noah_output_parsed.csv"
     
 
 # ==========================#

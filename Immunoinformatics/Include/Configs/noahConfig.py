@@ -34,7 +34,7 @@ def checkNOAHInstallation(block: PluginConfig):
         raise Exception("The NOAH parser executable path is not valid")
 
 
-# Create a plugin configuration for the mffa executable
+# Create a plugin configuration for the noah executable
 noahExecutableConfig = PluginConfig(
     name="NOAH executable",
     description="Configure the path to the NOAH executables for performing protein alignments",
