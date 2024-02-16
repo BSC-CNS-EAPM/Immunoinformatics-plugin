@@ -37,13 +37,6 @@ outputTSVVar = PluginVariable(
 ##############################
 #       Other variables      #
 ##############################
-outputNameVar = PluginVariable(
-    name="Output file name",
-    id="output_name",
-    description="Output file. (with file extension) the output is always a csv.",
-    type=VariableTypes.STRING,
-    defaultValue="output.csv",
-)
 seqVar = PluginVariable(
     name="Sequences file",
     id="sequences",
@@ -64,9 +57,9 @@ def runNOAH(block: PluginBlock):
     """
     inputFile = block.inputs["input_csv"]
     model = block.inputs["model"]
-    outputName = block.variables["output_name"]
-    seq = block.variables["sequences"]
-    cpus = block.variables["cpus"]
+    
+    noah_path = block.config.get("noah_path", "NOAH/main_NOAH.py")
+    noah_parser_path = block.config.get("noah_parser_path", "noah_output_parser.R")
     
     import pandas as pd
     
@@ -87,12 +80,12 @@ def runNOAH(block: PluginBlock):
 
     # Run the NOAH
     try:
-        subprocess.Popen(["python", "NOAH/main_NOAH.py", "-i", inputFile, "-m", model, "-o", outputName])
+        subprocess.Popen(["python", noah_path, "-i", inputFile, "-m", model, "-o", "output_noah.csv"])
     except Exception as e:
         raise(f"An error occurred while running the NOAH: {e}")
     
     try:
-        subprocess.Popen(["Rscript", "noah_output_parser.R", "--input", path/to/noah_output.csv, "--outdir", path/to/outputdir, "--outname", noah_output_parsed.csv])
+        subprocess.Popen(["Rscript", noah_parser_path, "--input", "output_noah.csv", "--outdir", os.getcwd(), "--outname", "noah_output_parsed.csv"])
     except Exception as e:
         raise(f"An error occurred while running the NOAH parser: {e}")
     
@@ -105,6 +98,6 @@ noahBlock = PluginBlock(
     description="Predict the binding affinity of peptides to HLA-I alleles",
     inputs=[inputFileVar, modelVar],
     outputs=[outputTSVVar],
-    variables=[outputNameVar, seqVar, cpusVar],
+    variables=[seqVar, cpusVar],
     action=runNOAH,
 )
