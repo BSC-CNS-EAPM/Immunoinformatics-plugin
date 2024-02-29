@@ -1,0 +1,7 @@
+{
+    "noah_path": "/home/albertcs/GitHub/EAPM/Neoantigens-NOAH/noah/main_NOAH.py",
+    "noah_parser_path": "/home/albertcs/Projects/ROC/noah_inout/noah_output_parser.R",
+    "cleave_path": "/home/albertcs/GitHub/EAPM/NetCleave/NetCleave.py",
+    "PCH_path": "/home/albertcs/Projects/ROC/pch_inout/predig_pch_calc.R",
+    "MHC_path": "mhcflurry-predict"
+}

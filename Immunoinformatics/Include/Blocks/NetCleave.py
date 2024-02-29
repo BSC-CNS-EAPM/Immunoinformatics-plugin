@@ -1,9 +1,11 @@
 """
 Module containing the NetCleave block for the Immunoinformatics plugin 
 """
+
 import os
 import subprocess
-from HorusAPI import PluginVariable, VariableTypes, PluginBlock, VariableGroup
+import pandas as pd
+from HorusAPI import PluginVariable, VariableTypes, PluginBlock
 
 # ==========================#
 # Variable inputs
@@ -27,37 +29,41 @@ outputCSVVar = PluginVariable(
     allowedValues=["csv"],
 )
 
+
 def runNetCleave(block: PluginBlock):
     """
     Run the NetCleave block
     """
     inputFile = block.inputs["input_csv"]
-    
+
     netCleave_path = block.config.get("netCleave_path", "NetCleave.py")
-    
-    import pandas as pd
-    
+
     try:
         os.path.exists(inputFile)
     except Exception as e:
-        raise(f"An error occurred while checking the input file: {e}")
+        raise Exception(f"An error occurred while checking the input file: {e}")
 
     # Run the NetCleave
     try:
-        subprocess.Popen(["python", netCleave_path, "--predict", inputFile, "--pred_input", 2])
+        subprocess.Popen(
+            ["python", netCleave_path, "--predict", inputFile, "--pred_input", str(2)]
+        )
     except Exception as e:
-        raise(f"An error occurred while running the NetCleave: {e}")
-    
+        raise Exception(f"An error occurred while running the NetCleave: {e}")
+
+    output = inputFile.replace(".fasta", "_netcleave.csv")
+
     # Set output
-    block.outputs["output_csv"] = "out.csv"
-    
+    # Columns epitope,uniprot_id, cleavage_site, netcleave, netc_warning
+    block.outputs["output_csv"] = output
+
 
 # ==========================#
 # Block definition
 # ==========================#
 netCleaveBlock = PluginBlock(
-    name="NOAH",
-    description="Predict the binding affinity of peptides to HLA-I alleles",
+    name="NetCleave",
+    description="NetCleave allows the prediction of C-terminal peptide processing of MHC pathways",
     inputs=[inputFileVar],
     outputs=[outputCSVVar],
     variables=[],

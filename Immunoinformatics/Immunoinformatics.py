@@ -11,27 +11,51 @@ def createPlugin():
     """
     # ========== Plugin Definition ========== #
 
-    immunoPlugin = Plugin(id="Immuno",)
+    immunoPlugin = Plugin(id="Immuno")
 
     # ========== Blocks ========== #
     from Blocks.PredIG import predigBlock  # type: ignore
+
     immunoPlugin.addBlock(predigBlock)
-    
+
     from Blocks.NOAH import noahBlock  # type: ignore
+
     immunoPlugin.addBlock(noahBlock)
-    
+
     from Blocks.NetCleave import netCleaveBlock  # type: ignore
+
     immunoPlugin.addBlock(netCleaveBlock)
-    
+
     # Add the configs
     from Configs.noahConfig import noahExecutableConfig
 
     immunoPlugin.addConfig(noahExecutableConfig)
 
+    from Configs.netCleaveConfig import netClaveExecutableConfig
 
+    immunoPlugin.addConfig(netClaveExecutableConfig)
+
+    from Configs.predIGConfig import predigExecutableConfig
+
+    immunoPlugin.addConfig(predigExecutableConfig)
 
     # Return the plugin
     return immunoPlugin
 
 
 plugin = createPlugin()
+
+"""Dependencies:
+    "scikit-learn",
+    "pandas",
+    "numpy",
+    "matplotlib",
+    "argparse",
+    "pathlib",
+    "keras",
+    "tensorflow",
+    "biopython",
+    "pytz",
+    "mhcflurry",
+    "rpy2"
+"""

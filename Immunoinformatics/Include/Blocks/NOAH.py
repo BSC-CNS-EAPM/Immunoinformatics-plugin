@@ -1,9 +1,11 @@
 """
 Module containing the NOAH block for the Immunoinformatics plugin 
 """
+
 import os
 import subprocess
-from HorusAPI import PluginVariable, VariableTypes, PluginBlock, VariableGroup
+
+from HorusAPI import PluginBlock, PluginVariable, VariableGroup, VariableTypes
 
 # ==========================#
 # Variable inputs
@@ -51,55 +53,91 @@ cpusVar = PluginVariable(
     defaultValue=1,
 )
 
+
 def runNOAH(block: PluginBlock):
     """
     Run the NOAH block
     """
     inputFile = block.inputs["input_csv"]
     model = block.inputs["model"]
-    
+
     noah_path = block.config.get("noah_path", "NOAH/main_NOAH.py")
     noah_parser_path = block.config.get("noah_parser_path", "noah_output_parser.R")
-    
+
     import pandas as pd
-    
+
     try:
         os.path.exists(inputFile)
     except Exception as e:
-        raise(f"An error occurred while checking the input file: {e}")
-    
+        raise Exception(f"An error occurred while checking the input file: {e}")
+
     # Load the csv file
     df = pd.read_csv(inputFile)
-    
+
     # Check if 'peptide' and 'allele' columns exist
-    if 'peptide' not in df.columns or 'allele' not in df.columns:
+    if "peptide" not in df.columns or "allele" not in df.columns:
         raise ValueError("The input CSV file must contain 'peptide' and 'allele' columns.")
-      
-    df = df[['peptide', 'allele']]
-    df = df.rename(columns={'peptide': 'epitope', 'allele': 'hla_allele'})
+
+    df = df[["peptide", "allele"]]
+    df = df.rename(columns={"allele": "HLA"})
     df.to_csv("input_noah.csv", index=False)
 
     # Run the NOAH
+    print("Running NOAH")
     try:
-        subprocess.Popen(["python", noah_path, "-i", "input_noah.csv", "-m", model, "-o", "output_noah.csv"])
+        with subprocess.Popen(
+            [
+                "python",
+                noah_path,
+                "-i",
+                "input_noah.csv",
+                "-m",
+                model,
+                "-o",
+                "output_noah.csv",
+            ]
+        ) as proc:
+            proc.wait()
     except Exception as e:
-        raise(f"An error occurred while running the NOAH: {e}")
-    
-    try:
-        subprocess.Popen(["Rscript", noah_parser_path, "--input", "output_noah.csv", "--outdir", os.getcwd(), "--outname", "noah_output_parsed.csv"])
-    except Exception as e:
-        raise(f"An error occurred while running the NOAH parser: {e}")
-    
+        raise Exception(f"An error occurred while running the NOAH: {e}")
+    print("Parsing NOAH output")
+
+    # try:
+    #     subprocess.Popen(
+    #         [
+    #             "Rscript",
+    #             noah_parser_path,
+    #             "--input",
+    #             "output_noah.csv",
+    #         ]
+    #     )
+    #     proc.wait()
+    # except Exception as e:
+    #     raise Exception(f"An error occurred while running the NOAH parser: {e}")
+
+    df = pd.read_csv("output_noah.csv", delimiter="\t")
+
+    df.columns = ["allele", "peptide", "NOAH_score"]
+    df.to_csv("noah_output_parsed.csv", index=False)
+
+    output = "noah_output_parsed.csv"
+    # df = pd.read_csv(output)
+    # df = df.rename(columns={"NOAH_score": "NOAH"})
+    # df["Peptide_Allele"] = df["peptide"] + "_" + df["allele"]
+    # df.to_csv(output, index=False)
+
+    print("NOAH finished")
+
     # Set output
-    block.outputs["output_csv"] = "noah_output_parsed.csv"
-    
+    block.outputs["output_csv"] = output
+
 
 # ==========================#
 # Block definition
 # ==========================#
 noahBlock = PluginBlock(
     name="NOAH",
-    description="Predict the binding affinity of peptides to HLA-I alleles",
+    description="Peptide prediction",
     inputs=[inputFileVar, modelVar],
     outputs=[outputTSVVar],
     variables=[seqVar, cpusVar],

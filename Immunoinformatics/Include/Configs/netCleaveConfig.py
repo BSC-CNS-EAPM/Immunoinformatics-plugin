@@ -23,7 +23,7 @@ def checkNetCleaveInstallation(block: PluginConfig):
 
 
 # Create a plugin configuration for the NetCleave executable
-noahExecutableConfig = PluginConfig(
+netClaveExecutableConfig = PluginConfig(
     name="NetCleave executable",
     description="Configure the path to the NetCleave executable for performing protein alignments",
     variables=[netCleavePathVariable],
