@@ -107,6 +107,7 @@ def runNOAH(block: PluginBlock):
     df = pd.read_csv("output_noah.csv", delimiter="\t")
 
     df.columns = ["HLA", "peptide", "NOAH_score"]
+    df["id"] = df["HLA"] + "_" + df["peptide"]
     df.to_csv("noah_output_parsed.csv", index=False)
 
     output = "noah_output_parsed.csv"

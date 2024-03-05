@@ -56,28 +56,28 @@ def runPredIGMerge(block: PluginBlock):
     # NetCleave
     if os.path.exists(block.inputs["netCleave_csv"]):
         df_netcleave = pd.read_csv(block.inputs["pch_csv"])
-        df_merge = pd.merge(df_merge, df_netcleave, on="epitope", how='outer')
+        df_merge = pd.merge(df_merge, df_netcleave, on="epitope", how="outer")
     else:
         raise Exception("The csv file of NetCleave does not exist.")
 
     # NOAH
     if os.path.exists(block.inputs["noah_csv"]):
         df_noah = pd.read_csv(block.inputs["noah_csv"])
-        df_merge = pd.merge(df_merge, df_noah, on="id", how='outer')
+        df_merge = pd.merge(df_merge, df_noah, on="id", how="outer")
     else:
         raise Exception("The csv file of NetCleave does not exist.")
 
     # PCH
     if os.path.exists(block.inputs["pch_csv"]):
         df_pch = pd.read_csv(block.inputs["pch_csv"])
-        df_merge = pd.merge(df_merge, df_pch, on="epitope", how='outer')
+        df_merge = pd.merge(df_merge, df_pch, on="epitope", how="outer")
     else:
         raise Exception("The csv file of PCH does not exist.")
-    
+
     # MHCflurry
     if os.path.exists(block.inputs["mhcflurry_csv"]):
         df_flurry = pd.read_csv(block.inputs["mhcflurry_csv"])
-        df_merge = pd.merge(df_merge, df_flurry, on="id", how='outer')
+        df_merge = pd.merge(df_merge, df_flurry, on="id", how="outer")
     else:
         raise Exception("The csv file of MHCflurry does not exist.")
 
