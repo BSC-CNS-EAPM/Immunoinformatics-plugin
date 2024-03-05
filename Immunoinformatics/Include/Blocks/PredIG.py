@@ -2,10 +2,9 @@
 Module containing the PredIG block for the Immunoinformatics plugin 
 """
 
-import subprocess
+import os
 
 import pandas as pd
-import rpy2.robjects.packages as rpackages
 from utils import runPredigMHCflurry, runPredigPCH
 
 from HorusAPI import PluginBlock, PluginVariable, VariableGroup, VariableTypes
@@ -49,7 +48,7 @@ outputFlurry = PluginVariable(
 ##############################
 #       Other variables      #
 ##############################
-seed = PluginVariable(
+seedVar = PluginVariable(
     name="Seed",
     id="seed",
     description="The seed for the random number generator.",
@@ -63,41 +62,7 @@ def runPredIG(block: PluginBlock):
     """
     Run the PredIG block
     """
-    import os
 
-    # # R package names
-    # packnames = (
-    #     "Peptides",
-    #     "dplyr",
-    #     "stringr",
-    #     "seqinr",
-    #     "argparser",
-    #     "xgboost",
-    # )  # replace with your package names
-    # R vector of strings
-    # from rpy2.robjects import conversion, default_converter
-    # from rpy2.robjects.vectors import StrVector
-    # # Selectively install what needs to be install.
-    # # We are fancy, just because we can.
-    # with conversion.localconverter(default_converter):
-    #     names_to_install = [x for x in packnames if not rpackages.isinstalled(x)]
-    #     if len(names_to_install) > 0:
-    #         utilsR = rpackages.importr("utils")
-    #         utilsR.chooseCRANmirror(ind=1)  # select the first mirror in the list
-    #         utilsR.install_packages(StrVector([names_to_install]))
-    # R libraries to install
-    # r_libraries = ["Peptides", "dplyr", "stringr", "seqinr", "argparser", "xgboost"]
-    # # R command to install libraries
-    # r_command = "R -e 'install.packages(c(\"" + '", "'.join(r_libraries) + "\"))'"
-    # # Run the R command
-    # subprocess.call(r_command, shell=True)
-    # try:
-    #     subprocess.Popen(r_command)
-    # except Exception as e:
-    #     raise Exception(
-    #         f"An error occurred while running the installation of the R packages: {e}"
-    #     ) from e
-    ##
     # Get the input file
     inputFile = block.inputs.get("input_csv")
     if inputFile is None:
@@ -151,7 +116,7 @@ predigBlock = PluginBlock(
     name="PredIG",
     description="Predicts the binding affinity of an epitope to an HLA-I allele.",
     action=runPredIG,
-    variables=[seed],
+    variables=[seedVar],
     inputGroups=[
         VariableGroup(
             id="file_variable_group",

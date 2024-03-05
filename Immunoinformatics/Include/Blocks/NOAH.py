@@ -62,7 +62,6 @@ def runNOAH(block: PluginBlock):
     model = block.inputs["model"]
 
     noah_path = block.config.get("noah_path", "NOAH/main_NOAH.py")
-    noah_parser_path = block.config.get("noah_parser_path", "noah_output_parser.R")
 
     import pandas as pd
 
@@ -76,7 +75,10 @@ def runNOAH(block: PluginBlock):
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df.columns or "allele" not in df.columns:
-        raise ValueError("The input CSV file must contain 'peptide' and 'allele' columns.")
+        if not "peptide" in df.columns and "HLA" not in df.columns:
+            raise ValueError(
+                "The input CSV file must contain 'peptide' and 'allele' or HLA columns."
+            )
 
     df = df[["peptide", "allele"]]
     df = df.rename(columns={"allele": "HLA"})
@@ -102,29 +104,12 @@ def runNOAH(block: PluginBlock):
         raise Exception(f"An error occurred while running the NOAH: {e}")
     print("Parsing NOAH output")
 
-    # try:
-    #     subprocess.Popen(
-    #         [
-    #             "Rscript",
-    #             noah_parser_path,
-    #             "--input",
-    #             "output_noah.csv",
-    #         ]
-    #     )
-    #     proc.wait()
-    # except Exception as e:
-    #     raise Exception(f"An error occurred while running the NOAH parser: {e}")
-
     df = pd.read_csv("output_noah.csv", delimiter="\t")
 
-    df.columns = ["allele", "peptide", "NOAH_score"]
+    df.columns = ["HLA", "peptide", "NOAH_score"]
     df.to_csv("noah_output_parsed.csv", index=False)
 
     output = "noah_output_parsed.csv"
-    # df = pd.read_csv(output)
-    # df = df.rename(columns={"NOAH_score": "NOAH"})
-    # df["Peptide_Allele"] = df["peptide"] + "_" + df["allele"]
-    # df.to_csv(output, index=False)
 
     print("NOAH finished")
 

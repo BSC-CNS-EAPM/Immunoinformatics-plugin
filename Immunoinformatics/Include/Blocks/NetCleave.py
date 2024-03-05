@@ -4,8 +4,8 @@ Module containing the NetCleave block for the Immunoinformatics plugin
 
 import os
 import subprocess
-import pandas as pd
-from HorusAPI import PluginVariable, VariableTypes, PluginBlock
+
+from HorusAPI import PluginBlock, PluginVariable, VariableTypes
 
 # ==========================#
 # Variable inputs
@@ -36,7 +36,9 @@ def runNetCleave(block: PluginBlock):
     """
     inputFile = block.inputs["input_csv"]
 
-    netCleave_path = block.config.get("netCleave_path", "NetCleave.py")
+    netCleave_path = block.config.get(
+        "netCleave_path", "/home/albertcs/GitHub/EAPM/NetCleave/NetCleave.py"
+    )
 
     try:
         os.path.exists(inputFile)
@@ -45,9 +47,10 @@ def runNetCleave(block: PluginBlock):
 
     # Run the NetCleave
     try:
-        subprocess.Popen(
+        with subprocess.Popen(
             ["python", netCleave_path, "--predict", inputFile, "--pred_input", str(2)]
-        )
+        ) as proc:
+            proc.wait()
     except Exception as e:
         raise Exception(f"An error occurred while running the NetCleave: {e}")
 

@@ -2,9 +2,9 @@
 Module containing the PredIG block for the Immunoinformatics plugin 
 """
 
-from HorusAPI import PluginVariable, VariableTypes, PluginBlock, VariableGroup
-from utils import runPredigPCH, runPredigMHCflurry
 import pandas as pd
+
+from HorusAPI import PluginBlock, PluginVariable, VariableGroup, VariableTypes
 
 # ==========================#
 # Variable inputs
@@ -32,89 +32,67 @@ inputPCH = PluginVariable(
 )
 
 
-
 # ==========================#
 # Variable outputs
 # ==========================#
-outputPCH = PluginVariable(
+outputFinal = PluginVariable(
     name="Output CSV",
-    id="output_pch",
-    description="The output csv with the PCH output.",
-    type=VariableTypes.FILE,
-    allowedValues=["csv"],
-)
-outputFlurry = PluginVariable(
-    name="Output CSV",
-    id="output_flurry",
-    description="The output tsv with the predicted binding affinity.",
+    id="output_final",
+    description="The output csv with the final output.",
     type=VariableTypes.FILE,
     allowedValues=["csv"],
 )
 
-##############################
-#       Other variables      #
-##############################
-seed = PluginVariable(
-    name="Seed",
-    id="seed",
-    description="The seed for the random number generator.",
-    type=VariableTypes.INTEGER,
-    defaultValue=123,
-)
 
 # Align action block
-def runPredIG(block: PluginBlock):
+def runPredIGMerge(block: PluginBlock):
     """
     Run the PredIG block
     """
     import os
-    
+
     df_merge = pd.DataFrame()
-    
+
+    # NetCleave
     if os.path.exists(block.inputs["netCleave_csv"]):
-        df_merge['netcleave'] = pd.read_csv(block.inputs["netCleave_csv"])[['netcleave']]
+        df_netcleave = pd.read_csv(block.inputs["pch_csv"])
+        df_merge = pd.merge(df_merge, df_netcleave, on="epitope", how='outer')
     else:
         raise Exception("The csv file of NetCleave does not exist.")
-    
+
+    # NOAH
     if os.path.exists(block.inputs["noah_csv"]):
         df_noah = pd.read_csv(block.inputs["noah_csv"])
-        df_merge['Peptide_Allele'] = df_noah[['Peptide_Allele']]
-        df_merge['NOAH'] = df_noah[['NOAH']]
+        df_merge = pd.merge(df_merge, df_noah, on="id", how='outer')
     else:
         raise Exception("The csv file of NetCleave does not exist.")
-    
+
+    # PCH
     if os.path.exists(block.inputs["pch_csv"]):
         df_pch = pd.read_csv(block.inputs["pch_csv"])
-        df_merge['Peptide'] = df_pch[['peptide']]
+        df_merge = pd.merge(df_merge, df_pch, on="epitope", how='outer')
     else:
-        raise Exception("The csv file of NetCleave does not exist.")
+        raise Exception("The csv file of PCH does not exist.")
     
+    # MHCflurry
+    if os.path.exists(block.inputs["mhcflurry_csv"]):
+        df_flurry = pd.read_csv(block.inputs["mhcflurry_csv"])
+        df_merge = pd.merge(df_merge, df_flurry, on="id", how='outer')
+    else:
+        raise Exception("The csv file of MHCflurry does not exist.")
+
     # peptide, mw_peptide, mw_tcr_contact, "
     # hydroph_peptide, hydroph_tcr_contact, charge_peptide, charge_tcr_contact, stab_peptide"
-    
-    
-    
-    
-    block.outputs["output_flurry"] = outputflurry
+    output_final = "output_merge.csv"
+
+    block.outputs["output_final"] = output_final
+
 
 predigBlock = PluginBlock(
     name="PredIG",
     description="Predicts the binding affinity of an epitope to an HLA-I allele.",
-    action=runPredIG,
-    variables=[seed],
-    inputGroups=[
-            VariableGroup(
-                id="file_variable_group",
-                name="File variable group",
-                description="Input with the csv file format.",
-                variables=[inputCSV],
-            ),
-            VariableGroup(
-                id="txt_variable_group",
-                name="TxtBox variable group",
-                description="Input with the txt format.",
-                variables=[inputTxtbox],
-            )
-    ],
-    outputs=[outputPCH, outputFlurry],
+    action=runPredIGMerge,
+    variables=[],
+    inputs=[inputNetCleave, inputNOAH, inputPCH],
+    outputs=[outputFinal],
 )

@@ -56,6 +56,6 @@ plugin = createPlugin()
     "tensorflow",
     "biopython",
     "pytz",
-    "mhcflurry",
+    "pip mhcflurry",
     "rpy2"
 """
