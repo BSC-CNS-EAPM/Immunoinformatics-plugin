@@ -1,16 +1,12 @@
-import datetime
 import os
-import shutil
 import subprocess
-import time
-import typing
 
 import pandas as pd
 
-from HorusAPI import PluginBlock, PluginVariable, SlurmBlock, VariableTypes
 
-
-def runPredigPCH(df_csv: pd.DataFrame, input_name: str, seed: int, predigPCH_path: str) -> str:
+def runPredigPCH(
+    df_csv: pd.DataFrame, input_name: str, seed: int, predigPCH_path: str
+) -> str:
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns:
@@ -39,11 +35,15 @@ def runPredigPCH(df_csv: pd.DataFrame, input_name: str, seed: int, predigPCH_pat
     return os.path.abspath("output_pch.csv")
 
 
-def runPredigMHCflurry(df_csv: pd.DataFrame, input_name: str, predigMHCflurry_path: str) -> str:
+def runPredigMHCflurry(
+    df_csv: pd.DataFrame, input_name: str, predigMHCflurry_path: str
+) -> str:
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns or "allele" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
+        raise ValueError(
+            "The input CSV file must contain 'peptide' and 'allele' column."
+        )
 
     df_csv = df_csv[["peptide", "allele"]]
     df_csv.to_csv("input_MHCflurry.csv", index=False)

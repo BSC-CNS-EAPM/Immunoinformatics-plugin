@@ -5,7 +5,7 @@ Entry point for the Immunoinformatics plugin
 from HorusAPI import Plugin
 
 
-def createPlugin():
+def create_plugin():
     """
     Generates the Immunoinformatics plugin and returns the instance
     """
@@ -43,7 +43,7 @@ def createPlugin():
     return immunoPlugin
 
 
-plugin = createPlugin()
+plugin = create_plugin()
 
 """Dependencies:
     "scikit-learn",
