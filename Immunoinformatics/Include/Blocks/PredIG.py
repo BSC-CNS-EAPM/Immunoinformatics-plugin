@@ -5,7 +5,7 @@ Module containing the PredIG block for the Immunoinformatics plugin
 import os
 
 import pandas as pd
-from utils import runPredigMHCflurry, runPredigPCH
+from utils import runPredigMHCflurry, runPredigNetCleave, runPredigNOAH, runPredigPCH
 
 from HorusAPI import PluginBlock, PluginVariable, VariableGroup, VariableTypes
 
@@ -45,6 +45,7 @@ outputFlurry = PluginVariable(
     allowedValues=["csv"],
 )
 
+
 ##############################
 #       Other variables      #
 ##############################
@@ -54,6 +55,13 @@ seedVar = PluginVariable(
     description="The seed for the random number generator.",
     type=VariableTypes.INTEGER,
     defaultValue=123,
+)
+modelVar = PluginVariable(
+    name="Model",
+    id="model",
+    description="The model to use.",
+    type=VariableTypes.FILE,
+    defaultValue="/home/perry/data/Github/NetCleave/data/models/general/model.pkl",
 )
 
 
@@ -74,7 +82,10 @@ def runPredIG(block: PluginBlock):
         raise Exception("No input file was provided")
 
     # Get the seed
-    seed = int(block.variables.get("seed", 123))
+    seed = int(block.variables.get(seedVar.id, 123))
+    model = block.variables.get(
+        modelVar.id, "/home/perry/data/Github/NetCleave/data/models/general/model.pkl"
+    )
 
     # Get the PCH path
     pchPath = block.config.get(
@@ -84,6 +95,16 @@ def runPredIG(block: PluginBlock):
     # Get the MHCflurry path
     mhcflurryPath = block.config.get("MHC_path", "mhcflurry-predict")
 
+    # Get the NetCleave path
+    netCleavePath = block.config.get(
+        "cleave_path", "/home/perry/data/Github/NetCleave/NetCleave.py"
+    )
+
+    noahPath = block.config.get(
+        "noah_path", "/home/perry/data/Github/Neoantigens-NOAH/noah/main_NOAH.py"
+    )
+
+    # /home/perry/data/Github/Neoantigens-NOAH/noah/main_NOAH.py
     # Check if the input file is valid
     if not os.path.isfile(inputFile):
         raise Exception("The input file is not valid")
@@ -94,7 +115,6 @@ def runPredIG(block: PluginBlock):
     print("Running PCH")
     outputpch = runPredigPCH(
         df_csv=df,
-        input_name=inputFile.split("/")[-1],
         seed=int(seed),
         predigPCH_path=pchPath,
     )
@@ -102,11 +122,18 @@ def runPredIG(block: PluginBlock):
     # Run the MHCflurry
     outputflurry = runPredigMHCflurry(
         df_csv=df,
-        input_name=inputFile.split("/")[-1],
         predigMHCflurry_path=mhcflurryPath,
     )
+    print("Running NetCleave")
+    # Run the NetCleave
+    # TODO make netcleave work
+    # TODO collect the output and make the output clearer
+    # output_netcleave = runPredigNetCleave(df_csv=df, predigNetcleave_path=netCleavePath)
+    print("Running NOAH")
+    # Run the NOAH
+    output_noah = runPredigNOAH(df_csv=df, predigNOAH_path=noahPath, model=model)
 
-    print("PCH and MHCflurry finished")
+    print("PredIG simulations finished")
     # Set the output
     block.outputs["output_pch"] = outputpch
     block.outputs["output_flurry"] = outputflurry
@@ -116,7 +143,7 @@ predigBlock = PluginBlock(
     name="PredIG",
     description="Predicts the binding affinity of an epitope to an HLA-I allele.",
     action=runPredIG,
-    variables=[seedVar],
+    variables=[seedVar, modelVar],
     inputGroups=[
         VariableGroup(
             id="file_variable_group",

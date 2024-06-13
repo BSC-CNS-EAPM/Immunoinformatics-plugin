@@ -29,7 +29,7 @@ def checkInstallations(block: PluginConfig):
     predigMHCflurry = block.variables.get("MHC_path")
 
     # Check if the path is valid
-    if not os.path.isfile(predigPCH):
+    if predigPCH is None or not os.path.isfile(predigPCH):
         raise Exception("The PCH executable path is not valid")
 
     print("verifying MHCflurry installation")
@@ -44,7 +44,7 @@ def checkInstallations(block: PluginConfig):
             # If the command fails, it will raise a CalledProcessError
             if "command not found" in str(e.output):
                 raise Exception("mhcflurry-predict command not found")
-    elif not os.path.isfile(predigMHCflurry):
+    elif predigMHCflurry is None or not os.path.isfile(predigMHCflurry):
         raise Exception("The MHCflurry parser executable path is not valid")
 
 

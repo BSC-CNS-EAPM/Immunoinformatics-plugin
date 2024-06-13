@@ -18,7 +18,7 @@ def checkNOAHInstallation(block: PluginConfig):
     noahPath = block.variables.get("noah_path")
 
     # Check if the path is valid
-    if not os.path.isfile(noahPath):
+    if noahPath is None or not os.path.isfile(noahPath):
         raise Exception("The NOAH executable path is not valid")
 
 
