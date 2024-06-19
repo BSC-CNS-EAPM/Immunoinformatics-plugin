@@ -35,9 +35,17 @@ def create_plugin():
 
     immunoPlugin.addConfig(netClaveExecutableConfig)
 
-    from Configs.predIGConfig import predigExecutableConfig
+    from Configs.pchConfig import pchExecutableConfig
 
-    immunoPlugin.addConfig(predigExecutableConfig)
+    immunoPlugin.addConfig(pchExecutableConfig)
+
+    from Configs.mhcflurryConfig import mhcflurryExecutableConfig
+
+    immunoPlugin.addConfig(mhcflurryExecutableConfig)
+
+    from Configs.netCTLpanConfig import netCTLpanExecutableConfig
+
+    immunoPlugin.addConfig(netCTLpanExecutableConfig)
 
     # Return the plugin
     return immunoPlugin

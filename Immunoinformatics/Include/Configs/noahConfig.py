@@ -5,7 +5,7 @@ noahPathVariable = PluginVariable(
     name="NOAH path",
     description="Path to the NOAH executable",
     type=VariableTypes.FILE,
-    defaultValue="NOAH/main_NOAH.py",
+    defaultValue="/home/perry/data/Programs/Immuno/Neoantigens-NOAH/noah/main_NOAH.py",
 )
 
 
@@ -15,7 +15,7 @@ def checkNOAHInstallation(block: PluginConfig):
     print("verifying NOAH installation")
 
     # Get the path to the noah executable
-    noahPath = block.variables.get("noah_path")
+    noahPath = block.variables.get(noahPathVariable.id)
 
     # Check if the path is valid
     if noahPath is None or not os.path.isfile(noahPath):
@@ -25,7 +25,7 @@ def checkNOAHInstallation(block: PluginConfig):
 # Create a plugin configuration for the noah executable
 noahExecutableConfig = PluginConfig(
     name="NOAH executable",
-    description="Configure the path to the NOAH executables for performing protein alignments",
+    description="Configure the path to the NOAH executables",
     variables=[noahPathVariable],
     action=checkNOAHInstallation,
 )

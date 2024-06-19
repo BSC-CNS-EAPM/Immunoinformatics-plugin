@@ -1,4 +1,5 @@
 {
-    "noah_path": "NOAH/main_NOAH.py",
-    "noah_parser_path": "noah_output_parser.R"
+    "noah_path": "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/noah/main_NOAH.py",
+    "PCH_path": "/home/perry/data/Programs/Immuno/PCH/predig_pch_calc.R",
+    "cleave_path": "/home/perry/data/Programs/Immuno/NetCleave/NetCleave.py"
 }

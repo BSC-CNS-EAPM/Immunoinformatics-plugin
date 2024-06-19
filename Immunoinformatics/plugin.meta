@@ -5,6 +5,12 @@
   "version": "0.0.1",
   "pluginFile": "Immunoinformatics.py",
   "dependencies": [
-    mhcflurry
+    "mhcflurry",
+    "biopython",
+    "pandas",
+    "matplotlib==3.8.3",
+    "pathlib",
+    "tensorflow",
+    "scikit_learn"
   ]
 }

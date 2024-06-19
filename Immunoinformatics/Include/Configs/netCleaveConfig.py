@@ -15,7 +15,7 @@ def checkNetCleaveInstallation(block: PluginConfig):
     print("verifying NetCleave installation")
 
     # Get the path to the netCleave executable
-    cleavePath = block.variables.get("cleave_path")
+    cleavePath = block.variables.get(netCleavePathVariable.id)
 
     # Check if the path is valid
     if cleavePath is None or not os.path.isfile(cleavePath):
