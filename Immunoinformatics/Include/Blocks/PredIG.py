@@ -5,14 +5,15 @@ Module containing the PredIG block for the Immunoinformatics plugin
 import os
 
 import pandas as pd
-from HorusAPI import PluginBlock, PluginVariable, VariableGroup, VariableTypes
 from utils import (
-    run_Predig_netCTLpan,
+    run_Predig_tapmap,
     runPredigMHCflurry,
     runPredigNetCleave,
     runPredigNOAH,
     runPredigPCH,
 )
+
+from HorusAPI import PluginBlock, PluginVariable, VariableGroup, VariableTypes
 
 # ==========================#
 # Variable inputs
@@ -82,6 +83,27 @@ modelXGVar = PluginVariable(
     type=VariableTypes.FILE,
     defaultValue="/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model",
 )
+matVar = PluginVariable(
+    name="Matrix",
+    id="mat",
+    description="The matrix to use.",
+    type=VariableTypes.FILE,
+    defaultValue="/home/perry/data/Programs/Immuno/netCTLpan-1.1/data/tap.logodds.mat",
+)
+alphaVar = PluginVariable(
+    name="Alpha",
+    id="alpha",
+    description="The alpha value to use.",
+    type=VariableTypes.FLOAT,
+    defaultValue=None,
+)
+precursorLenVar = PluginVariable(
+    name="Precursor length",
+    id="precursor_len",
+    description="The precursor length to use.",
+    type=VariableTypes.INTEGER,
+    defaultValue=None,
+)
 
 
 # Align action block
@@ -111,6 +133,9 @@ def runPredIG(block: PluginBlock):
     HLA_allele = block.variables.get(hlaVar.id, "HLA-A02:01")
     peptide_len = block.variables.get(peptideLenVar.id, 9)
     modelXG = block.variables.get(modelXGVar.id)
+    mat = block.variables.get(matVar.id, None)
+    alpha = block.variables.get(alphaVar.id, None)
+    precursor_len = block.variables.get(precursorLenVar.id, None)
 
     # Get the PCH path
     pchPath = block.config.get(
@@ -127,8 +152,9 @@ def runPredIG(block: PluginBlock):
         "noah_path", "/home/perry/data/Github/Neoantigens-NOAH/noah/main_NOAH.py"
     )
     # Get the netCTLpan path
-    netCTLpanPath = block.config.get(
-        "netCTLpan_path", "/home/perry/data/Programs/Immuno/netCTLpan-1.1/netCTLpan"
+    tapmat_pred_fsa_path = block.config.get(
+        "tapmap_path",
+        "/home/perry/data/Programs/Immuno/netCTLpan-1.1/Linux_x86_64/bin/tapmat_pred_fsa",
     )
     predig_script_path = block.config.get(
         "spwindep_path",
@@ -165,24 +191,25 @@ def runPredIG(block: PluginBlock):
     # Run the NOAH, ["HLA", "epitope", "NOAH_score"] id="HLA", "epitope"
     output_noah = runPredigNOAH(df_csv=df, predigNOAH_path=noahPath, model=model)
 
-    print("Running netCTLpan")
-    output_netCTLpan = run_Predig_netCTLpan(
+    print("Running tapmat_pred_fsa")
+    output_tapmap = run_Predig_tapmap(
         df_csv=df,
-        predignetCTLpan_path=netCTLpanPath,
-        HLA_allele=HLA_allele,
+        tapmap_path=tapmat_pred_fsa_path,
+        mat=mat,
         peptide_len=peptide_len,
+        alpha=alpha,
+        precursor_len=precursor_len,
     )
 
     print("Joining the outputs")
-    # join all the outputs dataframes by index
-    df_joined = pd.concat(
-        [output_noah, output_flurry, output_pch, output_netcleave, output_netCTLpan],
-        axis=1,
-        join="inner",
-    )
+
+    # Sequentially merge the DataFrames on a common non-overlapping column, for example 'epitope'
+    df_joined = output_noah.merge(output_flurry, on="epitope", how="inner")
+    df_joined = df_joined.merge(output_pch, on="epitope", how="inner")
+    df_joined = df_joined.merge(output_netcleave, on="epitope", how="inner")
 
     print("Launching the XGBoost model")
-    df_joined.to_csv("outputs_parsed.csv", index=False)
+    df_joined.to_csv("outputs_parsed.csv", index=True)
 
     try:
         proc = subprocess.Popen(
@@ -215,7 +242,16 @@ predigBlock = PluginBlock(
     name="PredIG",
     description="Predicts the binding affinity of an epitope to an HLA-I allele.",
     action=runPredIG,
-    variables=[seedVar, modelVar, hlaVar, peptideLenVar],
+    variables=[
+        seedVar,
+        modelVar,
+        hlaVar,
+        peptideLenVar,
+        modelXGVar,
+        matVar,
+        alphaVar,
+        precursorLenVar,
+    ],
     inputGroups=[
         VariableGroup(
             id="file_variable_group",

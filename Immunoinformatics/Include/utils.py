@@ -30,8 +30,8 @@ def runPredigPCH(df_csv: pd.DataFrame, seed: int, predigPCH_path: str) -> pd.Dat
 
     df = pd.read_csv(output)
     df = df.rename(columns={"peptide": "epitope"})
-    df.set_index("epitope", inplace=True)
-    df.to_csv("output_pch.csv", index=False)
+    # df.set_index("epitope", inplace=True)
+    df.to_csv("output_pch.csv", index=True)
 
     return df
 
@@ -40,9 +40,7 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str) -> pd.Da
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns or "allele" not in df_csv.columns:
-        raise ValueError(
-            "The input CSV file must contain 'peptide' and 'allele' column."
-        )
+        raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
 
     df_csv = df_csv[["peptide", "allele"]]
     df_csv.to_csv("input_MHCflurry.csv", index=False)
@@ -74,8 +72,8 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str) -> pd.Da
     df.drop("mhcflurry_presentation_percentile", axis=1, inplace=True)
     df = df.rename(columns={"allele": "hla_allele", "peptide": "epitope"})
     df["id"] = df["hla_allele"] + "_" + df["epitope"]
-    df.set_index("epitope", inplace=True)
-    df.to_csv(output, index=False)
+    # df.set_index("epitope", inplace=True)
+    df.to_csv(output, index=True)
 
     return df
 
@@ -84,9 +82,7 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns or "allele" not in df_csv.columns:
-        raise ValueError(
-            "The input CSV file must contain 'peptide' and 'allele' column."
-        )
+        raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
 
     df_csv = df_csv[["peptide", "uniprot_id"]]
     df_csv = df_csv.rename(columns={"peptide": "epitope"})
@@ -94,7 +90,7 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
 
     # Run the NetCleave
     try:
-        with subprocess.Popen(
+        proc = subprocess.Popen(
             [
                 "python",
                 predigNetcleave_path,
@@ -102,9 +98,13 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
                 "input_NetCleave.csv",
                 "--pred_input",
                 str(2),
-            ]
-        ) as proc:
-            proc.wait()
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        stdout, stderr = proc.communicate()
+        print("Output:", stdout.decode())
+        print("Error:", stderr.decode())
     except Exception as e:
         raise Exception(f"An error occurred while running the NetCleave: {e}")
 
@@ -112,15 +112,13 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
     df = pd.read_csv("output/input_NetCleave_NetCleave.csv")
     df = df[["epitope", "prediction"]]
     df = df.rename(columns={"prediction": "netcleave"})
-    df.set_index("epitope", inplace=True)
-    df.to_csv(output, index=False)
+    # df.set_index("epitope", inplace=True)
+    df.to_csv(output, index=True)
 
     return df
 
 
-def runPredigNOAH(
-    df_csv: pd.DataFrame, predigNOAH_path: str, model: str
-) -> pd.DataFrame:
+def runPredigNOAH(df_csv: pd.DataFrame, predigNOAH_path: str, model: str) -> pd.DataFrame:
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns or "allele" not in df_csv.columns:
@@ -134,7 +132,6 @@ def runPredigNOAH(
     df_csv.to_csv("input_noah.csv", index=False)
 
     # Run the NOAH
-    print("Running NOAH")
     try:
         with subprocess.Popen(
             [
@@ -155,20 +152,26 @@ def runPredigNOAH(
 
     output = "output_noah_parsed.csv"
 
-    df = pd.read_csv("output_noah.csv", delimiter="\t")
+    df = pd.read_csv(
+        "output_noah.csv",
+        delimiter="\t",
+        header=None,
+    )
     df.columns = ["hla_allele", "epitope", "NOAH_score"]
     df["id"] = df["hla_allele"] + "_" + df["epitope"]
-    df.set_index("epitope", inplace=True)
-    df.to_csv(output, index=False)
+    # df.set_index("epitope", inplace=True)
+    df.to_csv(output, index=True)
 
     return df
 
 
-def run_Predig_netCTLpan(
+def run_Predig_tapmap(
     df_csv: pd.DataFrame,
-    predignetCTLpan_path: str,
-    HLA_allele: str,
+    tapmap_path: str,
+    mat: str,
     peptide_len: int,
+    alpha: float,
+    precursor_len: int,
 ) -> pd.DataFrame:
 
     # Check if 'peptide' and 'allele' columns exist
@@ -176,29 +179,50 @@ def run_Predig_netCTLpan(
         raise ValueError("The input CSV file must contain 'peptide'.")
 
     df_csv = df_csv[["peptide"]]
-    df_csv.to_csv("input_netCTLpan.csv", index=False)
+    with open("input_tapmap.csv", "w") as f:
+        for i, peptide in enumerate(df_csv["peptide"]):
+            f.write(f">{i}\n")
+            f.write(peptide + "\n")
+    input_csv = os.path.join(os.getcwd(), "input_tapmap.csv")
 
-    # Run the netCTLpan
-    print("Running netCTLpan")
-    command = f"{predignetCTLpan_path} "
-    if HLA_allele:
-        command += f"-a {HLA_allele} "
+    command = tapmap_path
+    if mat:
+        command += f" -mat {mat} "
+    if alpha:
+        command += f"-a {alpha} "
     if peptide_len:
         command += f"-l {peptide_len} "
-    command += f"-f input_netCTLpan.csv"
+    if precursor_len:
+        command += f"-pl {precursor_len} "
+    command += f"{input_csv} > output_tapmap.txt"
     try:
-        with subprocess.Popen(command) as proc:
-            proc.wait()
+        proc = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True,
+        )
+        stdout, stderr = proc.communicate()
+        print("Output:", stdout.decode())
+        print("Error:", stderr.decode())
     except Exception as e:
-        raise Exception(f"An error occurred while running the netCTLpan: {e}")
-    print("Parsing netCTLpan output")
+        raise Exception(f"An error occurred while running the tapmap: {e}")
+    print("Parsing tapmap output")
 
-    output = "output_netCTLpan.csv"
+    output = "output_tapmap.csv"
 
-    df = pd.read_csv("output_netCTLpan.csv")
-    df = df[["peptide", "TAP"]]
-    df = df.rename(columns={"peptide": "epitope"})
-    df.set_index("epitope", inplace=True)
-    df.to_csv(output, index=False)
+    with open("output_tapmap.txt", "r") as infile:
+        epitope = []
+        tap = []
+        for line in infile:
+            if not line.startswith("#"):
+                parts = line.split()
+                if len(parts) >= 3:  # Ensure there are at least three parts in the line
+                    epitope.append(parts[1])
+                    tap.append(parts[2])
+
+    df = pd.DataFrame({"epitope": epitope, "TAP": tap})
+    # df.set_index("epitope", inplace=True)
+    df.to_csv(output, index=True)
 
     return df

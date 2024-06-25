@@ -22,7 +22,7 @@ def checkInstallations(block: PluginConfig):
 
 
 # Create a plugin configuration for the PredIG executables
-pchExecutableConfig = PluginConfig(
+spwindepExecutableConfig = PluginConfig(
     name="Predig XGBoost script executables",
     description="Configure the path to the Predig XGBoost script executables.",
     variables=[spwindepPathVariable],

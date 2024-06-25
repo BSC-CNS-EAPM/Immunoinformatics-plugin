@@ -11,6 +11,7 @@
     "matplotlib==3.8.3",
     "pathlib",
     "tensorflow",
-    "scikit_learn"
+    "scikit_learn",
+    "xgboost"
   ]
 }

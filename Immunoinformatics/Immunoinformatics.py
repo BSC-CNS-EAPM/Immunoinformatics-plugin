@@ -43,9 +43,13 @@ def create_plugin():
 
     immunoPlugin.addConfig(mhcflurryExecutableConfig)
 
-    from Configs.netCTLpanConfig import netCTLpanExecutableConfig
+    from Configs.tapmapConfig import tapmatExecutableConfig
 
-    immunoPlugin.addConfig(netCTLpanExecutableConfig)
+    immunoPlugin.addConfig(tapmatExecutableConfig)
+
+    from Configs.spwindepConfig import spwindepExecutableConfig
+
+    immunoPlugin.addConfig(spwindepExecutableConfig)
 
     # Return the plugin
     return immunoPlugin
