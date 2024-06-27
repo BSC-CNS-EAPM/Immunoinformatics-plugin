@@ -1,0 +1,8 @@
+{
+    "noah_path": "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/noah/main_NOAH.py",
+    "cleave_path": "/home/perry/data/Programs/Immuno/NetCleave/NetCleave.py",
+    "PCH_path": "/home/perry/data/Programs/Immuno/PCH/predig_pch_calc.R",
+    "MHC_path": "mhcflurry-predict",
+    "tapmap_path": "/home/perry/data/Programs/Immuno/netCTLpan-1.1/Linux_x86_64/bin/tapmat_pred_fsa",
+    "spwindep_path": "/home/perry/data/Programs/Immuno/Predig/predig_spwindep_calc.R"
+}

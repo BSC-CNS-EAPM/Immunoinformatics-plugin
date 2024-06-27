@@ -5,7 +5,7 @@ netCleavePathVariable = PluginVariable(
     name="NetCleave path",
     description="Path to the NetCleave executable",
     type=VariableTypes.FILE,
-    defaultValue="NetCleave.py",
+    defaultValue="/home/perry/data/Programs/Immuno/NetCleave/NetCleave.py",
 )
 
 

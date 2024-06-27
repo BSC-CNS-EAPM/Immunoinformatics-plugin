@@ -2,8 +2,6 @@
 Module containing the PredIG block for the Immunoinformatics plugin 
 """
 
-import os
-
 import pandas as pd
 from utils import (
     run_Predig_tapmap,
@@ -13,7 +11,7 @@ from utils import (
     runPredigPCH,
 )
 
-from HorusAPI import PluginBlock, PluginVariable, VariableGroup, VariableTypes
+from HorusAPI import Extensions, PluginBlock, PluginVariable, VariableGroup, VariableTypes
 
 # ==========================#
 # Variable inputs
@@ -53,7 +51,7 @@ seedVar = PluginVariable(
     id="seed",
     description="The seed for the random number generator.",
     type=VariableTypes.INTEGER,
-    defaultValue=123,
+    defaultValue=1234,
 )
 modelVar = PluginVariable(
     name="Model",
@@ -72,9 +70,9 @@ hlaVar = PluginVariable(
 peptideLenVar = PluginVariable(
     name="Peptide length",
     id="peptide_len",
-    description="The length of the peptide.",
-    type=VariableTypes.INTEGER,
-    defaultValue=9,
+    description="The length of the peptide. Give a list of sizes",
+    type=VariableTypes.NUMBER_LIST,
+    defaultValue=None,
 )
 modelXGVar = PluginVariable(
     name="XGBoost model",
@@ -112,7 +110,9 @@ def runPredIG(block: PluginBlock):
     Run the PredIG block
     """
 
-    import subprocess
+    import os
+
+    import xgboost as xgb
 
     # Get the input file
     inputFile = block.inputs.get("input_csv")
@@ -131,8 +131,10 @@ def runPredIG(block: PluginBlock):
         "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
     )
     HLA_allele = block.variables.get(hlaVar.id, "HLA-A02:01")
-    peptide_len = block.variables.get(peptideLenVar.id, 9)
-    modelXG = block.variables.get(modelXGVar.id)
+    peptide_len = block.variables.get(peptideLenVar.id, None)  # 8..14
+    if peptide_len is not None and type(peptide_len) == str:
+        raise ValueError("The peptide length must be a list of integers")
+    modelXG = block.variables.get(modelXGVar.id, None)
     mat = block.variables.get(matVar.id, None)
     alpha = block.variables.get(alphaVar.id, None)
     precursor_len = block.variables.get(precursorLenVar.id, None)
@@ -207,35 +209,48 @@ def runPredIG(block: PluginBlock):
     df_joined = output_noah.merge(output_flurry, on="epitope", how="inner")
     df_joined = df_joined.merge(output_pch, on="epitope", how="inner")
     df_joined = df_joined.merge(output_netcleave, on="epitope", how="inner")
+    df_joined = df_joined.merge(output_tapmap, on="epitope", how="inner")
 
     print("Launching the XGBoost model")
-    df_joined.to_csv("outputs_parsed.csv", index=True)
+    df_joined = df_joined.drop(columns=["hla_allele_y"])
+    df_joined = df_joined.rename(columns={"hla_allele_x": "hla_allele"})
+    # df_joined.to_csv("outputs_parsed.csv", index=False)
 
-    try:
-        proc = subprocess.Popen(
-            [
-                "Rscript",
-                predig_script_path,
-                "--input",
-                "outputs_parsed.csv",
-                "--seed",
-                str(seed),
-                "--model",
-                str(modelXG),
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        stdout, stderr = proc.communicate()
-        print("Output:", stdout.decode())
-        print("Error:", stderr.decode())
-    except Exception as e:
-        raise Exception(f"An error occurred while running the predig XGBoost: {e}")
+    df_xgboost = df_joined[
+        [
+            "netcleave",
+            "NOAH",
+            "mw_peptide",
+            "mw_tcr_contact",
+            "hydroph_peptide",
+            "hydroph_tcr_contact",
+            "charge_peptide",
+            "charge_tcr_contact",
+            "stab_peptide",
+            "mhcflurry_affinity",
+            "mhcflurry_affinity_percentile",
+            "mhcflurry_processing_score",
+            "mhcflurry_presentation_score",
+        ]
+    ]
+
+    # df_xgboost.to_csv("df_xgboost.csv", index=False)
+    predig_model = xgb.Booster()
+    predig_model.load_model(modelXG)
+    predig_input_matrix = xgb.DMatrix(df_xgboost)
+    predig_score = predig_model.predict(predig_input_matrix)
+    df_joined = pd.concat([df_joined, pd.Series(predig_score, name="predig")], axis=1)
+
+    df_joined["id"] = df_joined["hla_allele"] + "_" + df_joined["epitope"]
+    df_joined.to_csv("predig_output.csv", index=False)
 
     print("PredIG simulations finished")
-    output = "outputs_parsed_predig.csv"
+
+    html = df_joined.to_html(index=False)
+    Extensions().loadHTML(html, title="PredIG results")
+
     # Set the output
-    block.setOutput(outputPredIG.id, df_joined.to_csv(output, index=False))
+    block.setOutput(outputPredIG.id, "predig_output.csv")
 
 
 predigBlock = PluginBlock(

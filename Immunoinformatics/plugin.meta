@@ -6,7 +6,7 @@
   "pluginFile": "Immunoinformatics.py",
   "dependencies": [
     "mhcflurry",
-    "biopython",
+    "biopython==1.81",
     "pandas",
     "matplotlib==3.8.3",
     "pathlib",
