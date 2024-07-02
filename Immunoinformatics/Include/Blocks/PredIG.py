@@ -13,6 +13,10 @@ from utils import (
 
 from HorusAPI import Extensions, PluginBlock, PluginVariable, VariableGroup, VariableTypes
 
+# TODO modify the modul as input from the model selection block
+# TODO create the template flow
+
+
 # ==========================#
 # Variable inputs
 # ==========================#
@@ -28,6 +32,18 @@ inputTxtbox = PluginVariable(
     id="input_txtbox",
     description="The input txt with the epitope and presenting HLA-I allele.",
     type=VariableTypes.TEXT_AREA,
+)
+input_csv_group = VariableGroup(
+    id="file_variable_group",
+    name="File variable group",
+    description="Input with the csv file format.",
+    variables=[inputCSV],
+)
+input_txt_group = VariableGroup(
+    id="txt_variable_group",
+    name="TxtBox variable group",
+    description="Input with the txt format.",
+    variables=[inputTxtbox],
 )
 
 
@@ -115,12 +131,14 @@ def runPredIG(block: PluginBlock):
     import xgboost as xgb
 
     # Get the input file
-    inputFile = block.inputs.get("input_csv")
-    if inputFile is None:
-        inputFile = str(block.inputs.get("input_txtbox"))
+    if block.selectedInputGroup == input_txt_group.id:
+        inputFile = str(block.inputs.get(inputTxtbox.id))
         with open("input.csv", "w") as file:
             file.write(inputFile)
         inputFile = "input.csv"
+    else:
+        inputFile = block.inputs.get(inputCSV.id, None)
+
     if inputFile is None:
         raise Exception("No input file was provided")
 
@@ -157,10 +175,6 @@ def runPredIG(block: PluginBlock):
     tapmat_pred_fsa_path = block.config.get(
         "tapmap_path",
         "/home/perry/data/Programs/Immuno/netCTLpan-1.1/Linux_x86_64/bin/tapmat_pred_fsa",
-    )
-    predig_script_path = block.config.get(
-        "spwindep_path",
-        "/home/perry/data/Programs/Immuno/Predig/predig_spwindep_calc.R",
     )
 
     # /home/perry/data/Github/Neoantigens-NOAH/noah/main_NOAH.py
@@ -255,7 +269,7 @@ def runPredIG(block: PluginBlock):
 
 predigBlock = PluginBlock(
     name="PredIG",
-    description="Predicts the binding affinity of an epitope to an HLA-I allele.",
+    description="Predicts Predicts T-cell immunogenicity of given epitope and HLA-I allele pairs (pHLAs).",
     action=runPredIG,
     variables=[
         seedVar,
@@ -267,19 +281,6 @@ predigBlock = PluginBlock(
         alphaVar,
         precursorLenVar,
     ],
-    inputGroups=[
-        VariableGroup(
-            id="file_variable_group",
-            name="File variable group",
-            description="Input with the csv file format.",
-            variables=[inputCSV],
-        ),
-        VariableGroup(
-            id="txt_variable_group",
-            name="TxtBox variable group",
-            description="Input with the txt format.",
-            variables=[inputTxtbox],
-        ),
-    ],
+    inputGroups=[input_csv_group, input_txt_group],
     outputs=[outputPredIG],
 )

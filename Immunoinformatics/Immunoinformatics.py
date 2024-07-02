@@ -26,7 +26,11 @@ def create_plugin():
 
     immunoPlugin.addBlock(netCleaveBlock)
 
-    # Add the configs
+    from Blocks.Documentation import documentationBlock  # type: ignore
+
+    immunoPlugin.addBlock(documentationBlock)
+
+    # ========== Configs ========== #
     from Configs.noahConfig import noahExecutableConfig
 
     immunoPlugin.addConfig(noahExecutableConfig)
@@ -47,9 +51,10 @@ def create_plugin():
 
     immunoPlugin.addConfig(tapmatExecutableConfig)
 
-    from Configs.spwindepConfig import spwindepExecutableConfig
+    # ========== Pages ========== #
+    from documentation import documentationViewPage
 
-    immunoPlugin.addConfig(spwindepExecutableConfig)
+    immunoPlugin.addPage(documentationViewPage)
 
     # Return the plugin
     return immunoPlugin

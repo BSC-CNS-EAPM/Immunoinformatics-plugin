@@ -2,10 +2,7 @@
 Module containing the NOAH block for the Immunoinformatics plugin 
 """
 
-import os
-import subprocess
-
-from HorusAPI import PluginBlock, PluginVariable, VariableGroup, VariableTypes
+from HorusAPI import Extensions, PluginBlock, PluginVariable, VariableTypes
 
 # ==========================#
 # Variable inputs
@@ -17,13 +14,7 @@ inputFileVar = PluginVariable(
     type=VariableTypes.FILE,
     allowedValues=["csv"],
 )
-modelVar = PluginVariable(
-    name="Model",
-    id="model",
-    description="The model path to use for the prediction",
-    type=VariableTypes.FILE,
-    allowedValues=["pkl"],
-)
+
 
 # ==========================#
 # Variable outputs
@@ -39,18 +30,26 @@ outputTSVVar = PluginVariable(
 ##############################
 #       Other variables      #
 ##############################
-seqVar = PluginVariable(
-    name="Sequences file",
-    id="sequences",
-    description="File with the proteic sequences for the unknown HLAs (Selex format) (right now you must give a selex file if there is any HLA not modelled in your list, pending to be changed)",
+# seqVar = PluginVariable(
+#     name="Sequences file",
+#     id="sequences",
+#     description="File with the proteic sequences for the unknown HLAs (Selex format) (right now you must give a selex file if there is any HLA not modelled in your list, pending to be changed)",
+#     type=VariableTypes.FILE,
+# )
+# cpusVar = PluginVariable(
+#     name="CPUs",
+#     id="cpus",
+#     description="Number of CPUs to use",
+#     type=VariableTypes.INTEGER,
+#     defaultValue=1,
+# )
+modelVar = PluginVariable(
+    name="Model",
+    id="model",
+    description="The model path to use for the prediction",
     type=VariableTypes.FILE,
-)
-cpusVar = PluginVariable(
-    name="CPUs",
-    id="cpus",
-    description="Number of CPUs to use",
-    type=VariableTypes.INTEGER,
-    defaultValue=1,
+    allowedValues=["pkl"],
+    defaultValue="/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
 )
 
 
@@ -58,12 +57,21 @@ def runNOAH(block: PluginBlock):
     """
     Run the NOAH block
     """
-    inputFile = block.inputs["input_csv"]
-    model = block.inputs["model"]
 
-    noah_path = block.config.get("noah_path", "NOAH/main_NOAH.py")
+    import os
+    import subprocess
 
     import pandas as pd
+
+    inputFile = block.inputs.get(inputFileVar.id, None)
+    model = block.variables.get(
+        modelVar.id, "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl"
+    )
+
+    # Get the Noah path
+    noahPath = block.config.get(
+        "noah_path", "/home/perry/data/Github/Neoantigens-NOAH/noah/main_NOAH.py"
+    )
 
     try:
         os.path.exists(inputFile)
@@ -71,32 +79,31 @@ def runNOAH(block: PluginBlock):
         raise Exception(f"An error occurred while checking the input file: {e}")
 
     # Load the csv file
-    df = pd.read_csv(inputFile)
+    df_csv = pd.read_csv(inputFile)
 
     # Check if 'peptide' and 'allele' columns exist
-    if "peptide" not in df.columns or "allele" not in df.columns:
-        if not "peptide" in df.columns and "HLA" not in df.columns:
+    if "peptide" not in df_csv.columns or "allele" not in df_csv.columns:
+        if not "peptide" in df_csv.columns and "HLA" not in df_csv.columns:
             raise ValueError(
                 "The input CSV file must contain 'peptide' and 'allele' or HLA columns."
             )
 
-    df = df[["peptide", "allele"]]
-    df = df.rename(columns={"allele": "HLA"})
-    df.to_csv("input_noah.csv", index=False)
+    df_csv = df_csv[["peptide", "allele"]]
+    df_csv = df_csv.rename(columns={"allele": "HLA"})
+    df_csv.to_csv(".input_noah.csv", index=False)
 
     # Run the NOAH
-    print("Running NOAH")
     try:
         with subprocess.Popen(
             [
                 "python",
-                noah_path,
+                noahPath,
                 "-i",
-                "input_noah.csv",
+                ".input_noah.csv",
                 "-m",
                 model,
                 "-o",
-                "output_noah.csv",
+                ".output_noah.csv",
             ]
         ) as proc:
             proc.wait()
@@ -104,18 +111,25 @@ def runNOAH(block: PluginBlock):
         raise Exception(f"An error occurred while running the NOAH: {e}")
     print("Parsing NOAH output")
 
-    df = pd.read_csv("output_noah.csv", delimiter="\t")
+    output = "output_noah_parsed.csv"
 
-    df.columns = ["HLA", "peptide", "NOAH_score"]
-    df["id"] = df["HLA"] + "_" + df["peptide"]
-    df.to_csv("noah_output_parsed.csv", index=False)
+    df = pd.read_csv(
+        ".output_noah.csv",
+        delimiter="\t",
+        header=None,
+    )
+    df.to_csv(output, index=True)
 
-    output = "noah_output_parsed.csv"
+    os.remove(".input_noah.csv")
+    os.remove(".output_noah.csv")
 
     print("NOAH finished")
 
+    html = df.to_html(index=False)
+    Extensions().loadHTML(html, title="NOAH results")
+
     # Set output
-    block.outputs["output_csv"] = output
+    block.setOutput(outputTSVVar.id, output)
 
 
 # ==========================#
@@ -124,8 +138,8 @@ def runNOAH(block: PluginBlock):
 noahBlock = PluginBlock(
     name="NOAH",
     description="Peptide prediction",
-    inputs=[inputFileVar, modelVar],
+    inputs=[inputFileVar],
     outputs=[outputTSVVar],
-    variables=[seqVar, cpusVar],
+    variables=[modelVar],
     action=runNOAH,
 )

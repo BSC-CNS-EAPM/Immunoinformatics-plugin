@@ -5,11 +5,14 @@ import subprocess
 import pandas as pd
 
 
-def runPredigPCH(df_csv: pd.DataFrame, seed: int, predigPCH_path: str) -> pd.DataFrame:
+def runPredigPCH(df_csv: pd.DataFrame, seed: int, predigPCH_path: str):
 
     # Check if 'peptide' and 'allele' columns exist
-    if "peptide" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'peptide' column.")
+    if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
+        raise ValueError("The input CSV file must contain 'peptide' or 'epitope' column.")
+
+    if "epitope" in df_csv.columns:
+        df_csv = df_csv.rename(columns={"epitope": "peptide"})
 
     df_csv = df_csv[["peptide"]]
     df_csv.to_csv(".input_pch.csv", index=False)
@@ -37,11 +40,18 @@ def runPredigPCH(df_csv: pd.DataFrame, seed: int, predigPCH_path: str) -> pd.Dat
     return df
 
 
-def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str) -> pd.DataFrame:
+def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
 
     # Check if 'peptide' and 'allele' columns exist
-    if "peptide" not in df_csv.columns or "allele" not in df_csv.columns:
+    if "peptide" not in df_csv.columns or "epitope" not in df_csv.columns:
         raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
+    if "HLA_allele" not in df_csv.columns and "allele" not in df_csv.columns:
+        raise ValueError("The input CSV file must contain 'allele' or 'hla_allele' column.")
+
+    if "hla_allele" in df_csv.columns:
+        df_csv = df_csv.rename(columns={"HLA_allele": "allele"})
+    if "epitope" in df_csv.columns:
+        df_csv = df_csv.rename(columns={"epitope": "peptide"})
 
     df_csv = df_csv[["peptide", "allele"]]
     df_csv.to_csv(".input_MHCflurry.csv", index=False)
@@ -70,7 +80,6 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str) -> pd.Da
         raise Exception(f"An error occurred while running the PredigMHCflurry: {e}")
 
     df = pd.read_csv(output)
-    df.drop("mhcflurry_presentation_percentile", axis=1, inplace=True)
     df = df.rename(columns={"allele": "hla_allele", "peptide": "epitope"})
     df.to_csv(output, index=True)
 
@@ -82,31 +91,28 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str) -> pd.Da
 def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
 
     # Check if 'peptide' and 'allele' columns exist
-    if "peptide" not in df_csv.columns or "allele" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
+    if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
+        raise ValueError("The input CSV file must contain 'peptide' or 'epitope' column.")
+
+    if "uniport_id" not in df_csv.columns:
+        raise ValueError("The input CSV file must contain 'uniprot_id' column.")
 
     df_csv = df_csv[["peptide", "uniprot_id"]]
     df_csv = df_csv.rename(columns={"peptide": "epitope"})
     df_csv.to_csv(".input_NetCleave.csv", index=False)
 
     # Run the NetCleave
-    path = os.environ.get("PATH", None)
-    env = {
-        "PATH": path,
-        "PYTHONPATH": f"{os.path.dirname(os.path.abspath(__file__))}/../deps/",
-    }
-
     try:
         proc = subprocess.Popen(
             [
-                "python",
+                "/home/perry/miniconda3/envs/horus/bin/python",
                 predigNetcleave_path,
                 "--predict",
                 ".input_NetCleave.csv",
                 "--pred_input",
                 str(2),
             ],
-            env=env,
+            # env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -131,11 +137,21 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
 def runPredigNOAH(df_csv: pd.DataFrame, predigNOAH_path: str, model: str) -> pd.DataFrame:
 
     # Check if 'peptide' and 'allele' columns exist
-    if "peptide" not in df_csv.columns or "allele" not in df_csv.columns:
-        if not "peptide" in df_csv.columns and "HLA" not in df_csv.columns:
-            raise ValueError(
-                "The input CSV file must contain 'peptide' and 'allele' or HLA columns."
-            )
+    if "peptide" not in df_csv.columns or "epitope" not in df_csv.columns:
+        raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
+    if (
+        "HLA_allele" not in df_csv.columns
+        and "allele" not in df_csv.columns
+        and "HLA" not in df_csv.columns
+    ):
+        raise ValueError(
+            "The input CSV file must contain 'allele' or 'hla_allele' or 'HLA' column."
+        )
+
+    if "hla_allele" in df_csv.columns:
+        df_csv = df_csv.rename(columns={"HLA_allele": "HLA"})
+    if "epitope" in df_csv.columns:
+        df_csv = df_csv.rename(columns={"epitope": "peptide"})
 
     df_csv = df_csv[["peptide", "allele"]]
     df_csv = df_csv.rename(columns={"allele": "HLA"})
