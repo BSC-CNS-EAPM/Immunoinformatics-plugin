@@ -9,15 +9,12 @@
             height: 100%;
             width: 100%;
         }
-        iframe {
-            display: block; /* Removes the default iframe margin */
-            width: 100%;
-            height: 100%;
-            border: none; /* Optional: Removes the default border around the iframe */
-        }
+        .pdfobject-container { height: 100%; height: 100%; border: 5px solid #ccc; }
     </style>
 </head>
 <body>
-    <iframe src="predig_server_readmes.pdf"></iframe>
+    <div id="docu-pdf"></div>
 </body>
+<script src="https://unpkg.com/pdfobject"></script>
+<script>PDFObject.embed("predig_server_readmes.pdf", "#docu-pdf");</script>
 </html>

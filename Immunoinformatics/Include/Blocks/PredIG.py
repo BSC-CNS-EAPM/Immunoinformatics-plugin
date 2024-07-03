@@ -33,17 +33,24 @@ inputTxtbox = PluginVariable(
     description="The input txt with the epitope and presenting HLA-I allele.",
     type=VariableTypes.TEXT_AREA,
 )
+modelXGVar = PluginVariable(
+    name="PredIG model",
+    id="modelXGvar",
+    description="The PredIG model.",
+    type=VariableTypes.STRING_LIST,
+    defaultValue="/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model",
+)
 input_csv_group = VariableGroup(
     id="file_variable_group",
     name="File variable group",
     description="Input with the csv file format.",
-    variables=[inputCSV],
+    variables=[inputCSV, modelXGVar],
 )
 input_txt_group = VariableGroup(
     id="txt_variable_group",
     name="TxtBox variable group",
     description="Input with the txt format.",
-    variables=[inputTxtbox],
+    variables=[inputTxtbox, modelXGVar],
 )
 
 
@@ -89,13 +96,6 @@ peptideLenVar = PluginVariable(
     description="The length of the peptide. Give a list of sizes",
     type=VariableTypes.NUMBER_LIST,
     defaultValue=None,
-)
-modelXGVar = PluginVariable(
-    name="XGBoost model",
-    id="modelXG",
-    description="The XGBoost model to use.",
-    type=VariableTypes.FILE,
-    defaultValue="/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model",
 )
 matVar = PluginVariable(
     name="Matrix",
@@ -144,15 +144,24 @@ def runPredIG(block: PluginBlock):
 
     # Get the seed
     seed = int(block.variables.get(seedVar.id, 123))
-    model = block.variables.get(
+    model = block.inputs.get(
         modelVar.id,
         "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
     )
+
     HLA_allele = block.variables.get(hlaVar.id, "HLA-A02:01")
     peptide_len = block.variables.get(peptideLenVar.id, None)  # 8..14
     if peptide_len is not None and type(peptide_len) == str:
         raise ValueError("The peptide length must be a list of integers")
-    modelXG = block.variables.get(modelXGVar.id, None)
+
+    modelXG_name = block.variables.get(modelXGVar.id, None)
+    if modelXG_name == "PredIG-NonCan":
+        modelXG = "/home/perry/data/Programs/Immuno/Predig/spw_indep2_rescale_predig_model.model"
+    elif modelXG_name == "PredIG-Path":
+        modelXG = "/home/perry/data/Programs/Immuno/Predig/spw_indep1_rescale_predig_model.model"
+    else:  # "PredIG-NeoA"
+        modelXG = "/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model"
+
     mat = block.variables.get(matVar.id, None)
     alpha = block.variables.get(alphaVar.id, None)
     precursor_len = block.variables.get(precursorLenVar.id, None)
@@ -276,7 +285,6 @@ predigBlock = PluginBlock(
         modelVar,
         hlaVar,
         peptideLenVar,
-        modelXGVar,
         matVar,
         alphaVar,
         precursorLenVar,

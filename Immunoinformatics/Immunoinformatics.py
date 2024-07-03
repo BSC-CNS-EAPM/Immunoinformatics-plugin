@@ -30,6 +30,10 @@ def create_plugin():
 
     immunoPlugin.addBlock(documentationBlock)
 
+    from Blocks.PredIGmodels import predig_modelsBlock  # type: ignore
+
+    immunoPlugin.addBlock(predig_modelsBlock)
+
     # ========== Configs ========== #
     from Configs.noahConfig import noahExecutableConfig
 

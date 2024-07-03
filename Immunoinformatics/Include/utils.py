@@ -43,8 +43,8 @@ def runPredigPCH(df_csv: pd.DataFrame, seed: int, predigPCH_path: str):
 def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
 
     # Check if 'peptide' and 'allele' columns exist
-    if "peptide" not in df_csv.columns or "epitope" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
+    if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
+        raise ValueError("The input CSV file must contain 'peptide' or 'epitope' column.")
     if "HLA_allele" not in df_csv.columns and "allele" not in df_csv.columns:
         raise ValueError("The input CSV file must contain 'allele' or 'hla_allele' column.")
 
@@ -94,7 +94,7 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
         raise ValueError("The input CSV file must contain 'peptide' or 'epitope' column.")
 
-    if "uniport_id" not in df_csv.columns:
+    if "uniprot_id" not in df_csv.columns:
         raise ValueError("The input CSV file must contain 'uniprot_id' column.")
 
     df_csv = df_csv[["peptide", "uniprot_id"]]
@@ -137,7 +137,7 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
 def runPredigNOAH(df_csv: pd.DataFrame, predigNOAH_path: str, model: str) -> pd.DataFrame:
 
     # Check if 'peptide' and 'allele' columns exist
-    if "peptide" not in df_csv.columns or "epitope" not in df_csv.columns:
+    if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
         raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
     if (
         "HLA_allele" not in df_csv.columns
