@@ -1,5 +1,5 @@
-Immunoinformatics/__pycache__/*
-Immunoinformatics/Include/Blocks/__pycache__/*
-Immunoinformatics/Include/Configs/__pycache__/*
-Immunoinformatics/deps/*
-Immunoinformatics/Include/Blocks/test.ipynb
+Immunoinformatics/deps/
+
+*.ipynb
+
+__pycache__/
