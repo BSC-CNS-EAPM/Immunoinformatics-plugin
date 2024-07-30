@@ -65,7 +65,8 @@ def runNOAH(block: PluginBlock):
 
     inputFile = block.inputs.get(inputFileVar.id, None)
     model = block.variables.get(
-        modelVar.id, "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl"
+        modelVar.id,
+        "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
     )
 
     # Get the Noah path
@@ -125,8 +126,20 @@ def runNOAH(block: PluginBlock):
 
     print("NOAH finished")
 
-    html = df.to_html(index=False)
-    Extensions().loadHTML(html, title="NOAH results")
+    from itables import to_html_datatable
+
+    html = to_html_datatable(
+        df, display_logo_when_loading=False, maxRows=501, showIndex=True
+    )
+    with open("interactive_table.html", "w", encoding="utf-8") as filehtml:
+        filehtml.write(html)
+
+    Extensions().storeExtensionResults(
+        "immuno",
+        "load_tables",
+        data={"path": os.path.abspath("interactive_table.html")},
+        title="NetCleave results",
+    )
 
     # Set output
     block.setOutput(outputTSVVar.id, output)

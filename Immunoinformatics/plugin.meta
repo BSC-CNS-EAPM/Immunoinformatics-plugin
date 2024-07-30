@@ -2,7 +2,7 @@
   "name": "Immunoinformatics",
   "description": "The Immunoinformatics utilities plugin for Horus",
   "author": "BSC",
-  "version": "0.0.2",
+  "version": "1.0.0",
   "pluginFile": "Immunoinformatics.py",
   "dependencies": [
     "mhcflurry",
@@ -13,7 +13,7 @@
     "tensorflow",
     "scikit_learn",
     "xgboost",
-    "pathlib",
-    "numpy==1.26.4"
+    "numpy==1.26.4",
+    "itables"
   ]
 }

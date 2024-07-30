@@ -193,6 +193,9 @@ def runPredIG(block: PluginBlock):
 
     df = pd.read_csv(inputFile)
 
+    if df.shape[0] > 500:
+        raise ValueError("The input CSV file must contain less than 500 rows.")
+
     # Run the PCH ["epitope"]
     print("Running PCH")
     output_pch = runPredigPCH(
@@ -269,8 +272,22 @@ def runPredIG(block: PluginBlock):
 
     print("PredIG simulations finished")
 
-    html = df_joined.to_html(index=False)
-    Extensions().loadHTML(html, title="PredIG results")
+    # html = df_joined.to_html(index=False)
+
+    from itables import to_html_datatable
+
+    html = to_html_datatable(
+        df_joined, display_logo_when_loading=False, maxRows=501, showIndex=True
+    )
+    with open("interactive_table.html", "w", encoding="utf-8") as filehtml:
+        filehtml.write(html)
+
+    Extensions().storeExtensionResults(
+        "immuno",
+        "load_tables",
+        data={"path": os.path.abspath("interactive_table.html")},
+        title="NetCleave results",
+    )
 
     # Set the output
     block.setOutput(outputPredIG.id, "predig_output.csv")
@@ -278,7 +295,7 @@ def runPredIG(block: PluginBlock):
 
 predigBlock = PluginBlock(
     name="PredIG",
-    description="Predicts Predicts T-cell immunogenicity of given epitope and HLA-I allele pairs (pHLAs).",
+    description="Predicts T-cell immunogenicity of given epitope and HLA-I allele pairs (pHLAs). Max 500 queries.",
     action=runPredIG,
     variables=[
         seedVar,

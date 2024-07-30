@@ -56,9 +56,13 @@ def create_plugin():
     immunoPlugin.addConfig(tapmatExecutableConfig)
 
     # ========== Pages ========== #
-    from documentation import documentationViewPage
+    from Pages.documentation import documentationViewPage
 
     immunoPlugin.addPage(documentationViewPage)
+
+    from Pages.load_tables import load_page
+
+    immunoPlugin.addPage(load_page)
 
     # Return the plugin
     return immunoPlugin

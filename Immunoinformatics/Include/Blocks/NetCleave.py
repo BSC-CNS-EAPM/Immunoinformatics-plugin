@@ -65,6 +65,10 @@ def runNetCleave(block: PluginBlock):
 
         # Load the csv file
         df_csv = pd.read_csv(inputFile)
+
+        if df_csv.shape[0] > 500:
+            raise ValueError("The input CSV file must contain less than 500 rows.")
+
         # Check if 'peptide' and 'epitope' columns exist
         if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
             raise ValueError("The input CSV file must contain 'peptide' or 'epitope' column.")
@@ -89,6 +93,10 @@ def runNetCleave(block: PluginBlock):
         in_netcleave = ".input_NetCleave.csv"
     else:
         in_netcleave = block.inputs.get(inputFastaVar.id, None)
+        with open(in_netcleave, "rbU") as f:
+            num_lines = sum(1 for _ in f)
+        if num_lines > 1000:
+            raise ValueError("The input FASTA file must contain less than 500 FASTAs.")
         try:
             os.path.exists(in_netcleave)
         except Exception as e:
@@ -126,14 +134,27 @@ def runNetCleave(block: PluginBlock):
         os.remove(".input_NetCleave.csv")
     else:
         df = pd.read_csv(f"output/{in_name}_NetCleave.csv")
+
+    df = df.rename(columns={"Unnamed: 0": "n"})
     df.to_csv(output, index=False)
 
     shutil.rmtree("output")
 
     print("NetCleave finished")
 
-    html = df.to_html(index=False)
-    Extensions().loadHTML(html, title="NetCleave results")
+    # Generate HTML from template.
+    from itables import to_html_datatable
+
+    html = to_html_datatable(df, display_logo_when_loading=False)
+    with open("interactive_table.html", "w", encoding="utf-8") as filehtml:
+        filehtml.write(html)
+
+    Extensions().storeExtensionResults(
+        "immuno",
+        "load_tables",
+        data={"path": os.path.abspath("interactive_table.html")},
+        title="NetCleave results",
+    )
 
     # Set output
     block.setOutput(outputCSVVar.id, output)
@@ -144,7 +165,7 @@ def runNetCleave(block: PluginBlock):
 # ==========================#
 netCleaveBlock = PluginBlock(
     name="NetCleave",
-    description="NetCleave allows the prediction of C-terminal peptide processing of MHC pathways",
+    description="NetCleave allows the prediction of C-terminal peptide processing of MHC pathways. Max 500 queries.",
     inputGroups=[csvVariableGroup, fastaVariableGroup],
     outputs=[outputCSVVar],
     variables=[],
