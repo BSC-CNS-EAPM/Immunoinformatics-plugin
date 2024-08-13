@@ -3,6 +3,13 @@ Module containing the PredIG block for the Immunoinformatics plugin
 """
 
 import pandas as pd
+from HorusAPI import (
+    Extensions,
+    PluginBlock,
+    PluginVariable,
+    VariableGroup,
+    VariableTypes,
+)
 from utils import (
     run_Predig_tapmap,
     runPredigMHCflurry,
@@ -10,8 +17,6 @@ from utils import (
     runPredigNOAH,
     runPredigPCH,
 )
-
-from HorusAPI import Extensions, PluginBlock, PluginVariable, VariableGroup, VariableTypes
 
 # TODO create the template flow
 
@@ -37,7 +42,7 @@ modelXGVar = PluginVariable(
     id="modelXGvar",
     description="The PredIG model.",
     type=VariableTypes.STRING_LIST,
-    defaultValue="/home/lavane/sda/Users/acanella/Immuno/models/spw_xtreme_predig_model.model",
+    defaultValue="/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model",
 )
 input_csv_group = VariableGroup(
     id="file_variable_group",
@@ -80,7 +85,7 @@ modelVar = PluginVariable(
     id="model",
     description="The model to use.",
     type=VariableTypes.FILE,
-    defaultValue="/home/lavane/sda/Users/acanella/Immuno/models/model.pkl",
+    defaultValue="/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
 )
 hlaVar = PluginVariable(
     name="HLA allele",
@@ -146,7 +151,7 @@ def runPredIG(block: PluginBlock):
     # TODO have changed the paths for the lavane, need to be chenged back for perry
     model = block.inputs.get(
         modelVar.id,
-        "/home/lavane/sda/Users/acanella/Immuno/models/model.pkl",
+        "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
     )
 
     # HLA_allele = block.variables.get(hlaVar.id, "HLA-A02:01")
@@ -160,7 +165,9 @@ def runPredIG(block: PluginBlock):
     elif modelXG_name == "PredIG-Path":
         modelXG = "/home/perry/data/Programs/Immuno/Predig/spw_indep1_rescale_predig_model.model"
     else:  # "PredIG-NeoA"
-        modelXG = "/home/lavane/sda/Users/acanella/Immuno/models/spw_xtreme_predig_model.model"
+        modelXG = (
+            "/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model"
+        )
 
     mat = block.variables.get(matVar.id, None)
     alpha = block.variables.get(alphaVar.id, None)
@@ -237,15 +244,25 @@ def runPredIG(block: PluginBlock):
     # df_joined = df_joined.merge(output_tapmap, on="epitope", how="inner")
     # df_joined = df_joined.merge(output_noah, on="epitope", how="inner")
 
-    df_joined = output_pch.merge(output_flurry, left_index=True, right_index=True, how="inner")
-    df_joined = df_joined.merge(output_netcleave, left_index=True, right_index=True, how="inner")
+    df_joined = output_pch.merge(
+        output_flurry, left_index=True, right_index=True, how="inner"
+    )
     df_joined = df_joined.merge(
-        output_tapmap, left_index=True, right_index=True, how="inner", suffixes=("", "_tapmap")
+        output_netcleave, left_index=True, right_index=True, how="inner"
+    )
+    df_joined = df_joined.merge(
+        output_tapmap,
+        left_index=True,
+        right_index=True,
+        how="inner",
+        suffixes=("", "_tapmap"),
     )
 
     df_joined["id"] = df_joined["hla_allele"] + "_" + df_joined["epitope"]
     output_noah["id"] = output_noah["hla_allele"] + "_" + output_noah["epitope"]
-    df_joined = df_joined.merge(output_noah, on="id", how="inner", suffixes=("", "_noah"))
+    df_joined = df_joined.merge(
+        output_noah, on="id", how="inner", suffixes=("", "_noah")
+    )
 
     print("Launching the XGBoost model")
     if "hla_allele_y" in df_joined.columns:

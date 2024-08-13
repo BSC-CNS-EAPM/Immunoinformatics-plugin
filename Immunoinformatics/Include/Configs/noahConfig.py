@@ -5,7 +5,7 @@ noahPathVariable = PluginVariable(
     name="NOAH path",
     description="Path to the NOAH executable",
     type=VariableTypes.FILE,
-    defaultValue="/home/lavane/sdb/Programs/Neoantigens-NOAH/noah/main_NOAH.py",
+    defaultValue="/home/perry/data/Programs/Immuno/Neoantigens-NOAH/noah/main_NOAH.py",
 )
 
 

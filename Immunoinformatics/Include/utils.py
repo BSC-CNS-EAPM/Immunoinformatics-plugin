@@ -9,7 +9,9 @@ def runPredigPCH(df_csv: pd.DataFrame, seed: int, predigPCH_path: str):
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'peptide' or 'epitope' column.")
+        raise ValueError(
+            "The input CSV file must contain 'peptide' or 'epitope' column."
+        )
 
     if "epitope" in df_csv.columns:
         df_csv = df_csv.rename(columns={"epitope": "peptide"})
@@ -20,7 +22,14 @@ def runPredigPCH(df_csv: pd.DataFrame, seed: int, predigPCH_path: str):
     # Run the PCH
     try:
         proc = subprocess.Popen(
-            ["Rscript", predigPCH_path, "--input", ".input_pch.csv", "--seed", str(seed)],
+            [
+                "Rscript",
+                predigPCH_path,
+                "--input",
+                ".input_pch.csv",
+                "--seed",
+                str(seed),
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -44,9 +53,13 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'peptide' or 'epitope' column.")
+        raise ValueError(
+            "The input CSV file must contain 'peptide' or 'epitope' column."
+        )
     if "HLA_allele" not in df_csv.columns and "allele" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'allele' or 'hla_allele' column.")
+        raise ValueError(
+            "The input CSV file must contain 'allele' or 'hla_allele' column."
+        )
 
     if "hla_allele" in df_csv.columns:
         df_csv = df_csv.rename(columns={"hla_allele": "allele"})
@@ -94,7 +107,9 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'peptide' or 'epitope' column.")
+        raise ValueError(
+            "The input CSV file must contain 'peptide' or 'epitope' column."
+        )
 
     if "epitope" in df_csv.columns:
         df_csv = df_csv.rename(columns={"epitope": "peptide"})
@@ -107,8 +122,8 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
     df_csv.to_csv(".input_NetCleave.csv", index=False)
 
     # Run the NetCleave
-    python_path_env = "/home/lavane/micromamba/envs/horus/bin/python"
-    # python_path_env = "/home/perry/miniconda3/envs/horus/bin/python"
+    # python_path_env = "/home/lavane/micromamba/envs/horus/bin/python"
+    python_path_env = "/home/perry/miniconda3/envs/horus/bin/python"
 
     try:
         proc = subprocess.Popen(
@@ -142,11 +157,15 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
     return df
 
 
-def runPredigNOAH(df_csv: pd.DataFrame, predigNOAH_path: str, model: str) -> pd.DataFrame:
+def runPredigNOAH(
+    df_csv: pd.DataFrame, predigNOAH_path: str, model: str
+) -> pd.DataFrame:
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
+        raise ValueError(
+            "The input CSV file must contain 'peptide' and 'allele' column."
+        )
     if (
         "HLA_allele" not in df_csv.columns
         and "allele" not in df_csv.columns
@@ -213,7 +232,9 @@ def run_Predig_tapmap(
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
+        raise ValueError(
+            "The input CSV file must contain 'peptide' and 'allele' column."
+        )
 
     if "epitope" in df_csv.columns:
         df_csv = df_csv.rename(columns={"epitope": "peptide"})
@@ -262,7 +283,9 @@ def run_Predig_tapmap(
             print("Output:", stdout.decode())
             print("Error:", stderr.decode())
         except Exception as e:
-            raise Exception(f"An error occurred while running the tapmap size={size}: {e}")
+            raise Exception(
+                f"An error occurred while running the tapmap size={size}: {e}"
+            )
 
     print("Parsing tapmap output")
 
@@ -273,7 +296,9 @@ def run_Predig_tapmap(
             for line in infile:
                 if not line.startswith("#"):
                     parts = line.split()
-                    if len(parts) >= 3:  # Ensure there are at least three parts in the line
+                    if (
+                        len(parts) >= 3
+                    ):  # Ensure there are at least three parts in the line
                         epitope.append(parts[1])
                         tap.append(parts[2])
 
