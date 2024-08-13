@@ -5,7 +5,7 @@ PCHPathVariable = PluginVariable(
     name="PCH path",
     description="Path to the PCH executable",
     type=VariableTypes.FILE,
-    defaultValue="/home/perry/data/Programs/Immuno/PCH/predig_pch_calc.R",
+    defaultValue="/home/lavane/sda/Users/acanella/Immuno/predig_pch_calc.R",
 )
 
 

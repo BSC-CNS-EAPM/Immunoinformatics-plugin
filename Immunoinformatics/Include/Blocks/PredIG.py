@@ -13,7 +13,6 @@ from utils import (
 
 from HorusAPI import Extensions, PluginBlock, PluginVariable, VariableGroup, VariableTypes
 
-# TODO modify the modul as input from the model selection block
 # TODO create the template flow
 
 
@@ -38,7 +37,7 @@ modelXGVar = PluginVariable(
     id="modelXGvar",
     description="The PredIG model.",
     type=VariableTypes.STRING_LIST,
-    defaultValue="/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model",
+    defaultValue="/home/lavane/sda/Users/acanella/Immuno/models/spw_xtreme_predig_model.model",
 )
 input_csv_group = VariableGroup(
     id="file_variable_group",
@@ -81,7 +80,7 @@ modelVar = PluginVariable(
     id="model",
     description="The model to use.",
     type=VariableTypes.FILE,
-    defaultValue="/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
+    defaultValue="/home/lavane/sda/Users/acanella/Immuno/models/model.pkl",
 )
 hlaVar = PluginVariable(
     name="HLA allele",
@@ -133,7 +132,7 @@ def runPredIG(block: PluginBlock):
     # Get the input file
     if block.selectedInputGroup == input_txt_group.id:
         inputFile = str(block.inputs.get(inputTxtbox.id))
-        with open("input.csv", "w") as file:
+        with open("input.csv", "w", encoding="utf-8") as file:
             file.write(inputFile)
         inputFile = "input.csv"
     else:
@@ -144,14 +143,15 @@ def runPredIG(block: PluginBlock):
 
     # Get the seed
     seed = int(block.variables.get(seedVar.id, 123))
+    # TODO have changed the paths for the lavane, need to be chenged back for perry
     model = block.inputs.get(
         modelVar.id,
-        "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
+        "/home/lavane/sda/Users/acanella/Immuno/models/model.pkl",
     )
 
-    HLA_allele = block.variables.get(hlaVar.id, "HLA-A02:01")
+    # HLA_allele = block.variables.get(hlaVar.id, "HLA-A02:01")
     peptide_len = block.variables.get(peptideLenVar.id, None)  # 8..14
-    if peptide_len is not None and type(peptide_len) == str:
+    if peptide_len is not None and isinstance(peptide_len, str):
         raise ValueError("The peptide length must be a list of integers")
 
     modelXG_name = block.variables.get(modelXGVar.id, None)
@@ -160,7 +160,7 @@ def runPredIG(block: PluginBlock):
     elif modelXG_name == "PredIG-Path":
         modelXG = "/home/perry/data/Programs/Immuno/Predig/spw_indep1_rescale_predig_model.model"
     else:  # "PredIG-NeoA"
-        modelXG = "/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model"
+        modelXG = "/home/lavane/sda/Users/acanella/Immuno/models/spw_xtreme_predig_model.model"
 
     mat = block.variables.get(matVar.id, None)
     alpha = block.variables.get(alphaVar.id, None)
@@ -232,14 +232,26 @@ def runPredIG(block: PluginBlock):
     print("Joining the outputs")
 
     # Sequentially merge the DataFrames on a common non-overlapping column, for example 'epitope'
-    df_joined = output_noah.merge(output_flurry, on="epitope", how="inner")
-    df_joined = df_joined.merge(output_pch, on="epitope", how="inner")
-    df_joined = df_joined.merge(output_netcleave, on="epitope", how="inner")
-    df_joined = df_joined.merge(output_tapmap, on="epitope", how="inner")
+    # df_joined = output_pch.merge(output_flurry, on="epitope", how="inner")
+    # df_joined = df_joined.merge(output_netcleave, on="epitope", how="inner")
+    # df_joined = df_joined.merge(output_tapmap, on="epitope", how="inner")
+    # df_joined = df_joined.merge(output_noah, on="epitope", how="inner")
+
+    df_joined = output_pch.merge(output_flurry, left_index=True, right_index=True, how="inner")
+    df_joined = df_joined.merge(output_netcleave, left_index=True, right_index=True, how="inner")
+    df_joined = df_joined.merge(
+        output_tapmap, left_index=True, right_index=True, how="inner", suffixes=("", "_tapmap")
+    )
+
+    df_joined["id"] = df_joined["hla_allele"] + "_" + df_joined["epitope"]
+    output_noah["id"] = output_noah["hla_allele"] + "_" + output_noah["epitope"]
+    df_joined = df_joined.merge(output_noah, on="id", how="inner", suffixes=("", "_noah"))
 
     print("Launching the XGBoost model")
-    df_joined = df_joined.drop(columns=["hla_allele_y"])
-    df_joined = df_joined.rename(columns={"hla_allele_x": "hla_allele"})
+    if "hla_allele_y" in df_joined.columns:
+        df_joined = df_joined.drop(columns=["hla_allele_y"])
+    if "hla_allele_x" in df_joined.columns:
+        df_joined = df_joined.rename(columns={"hla_allele_x": "hla_allele"})
     # df_joined.to_csv("outputs_parsed.csv", index=False)
 
     df_xgboost = df_joined[

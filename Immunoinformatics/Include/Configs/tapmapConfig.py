@@ -5,7 +5,7 @@ tapmapPathVariable = PluginVariable(
     name="tapmap path",
     description="Path to the tapmap_pred_fsa executable",
     type=VariableTypes.FILE,
-    defaultValue="/home/perry/data/Programs/Immuno/netCTLpan-1.1/Linux_x86_64/bin/tapmat_pred_fsa",
+    defaultValue="/home/lavane/sdb/Programs/netCTLpan-1.1/Linux_x86_64/bin/tapmat_pred_fsa",
 )
 
 

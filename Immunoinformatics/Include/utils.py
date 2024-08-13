@@ -49,6 +49,8 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
         raise ValueError("The input CSV file must contain 'allele' or 'hla_allele' column.")
 
     if "hla_allele" in df_csv.columns:
+        df_csv = df_csv.rename(columns={"hla_allele": "allele"})
+    if "HLA_allele" in df_csv.columns:
         df_csv = df_csv.rename(columns={"HLA_allele": "allele"})
     if "epitope" in df_csv.columns:
         df_csv = df_csv.rename(columns={"epitope": "peptide"})
@@ -94,6 +96,9 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
         raise ValueError("The input CSV file must contain 'peptide' or 'epitope' column.")
 
+    if "epitope" in df_csv.columns:
+        df_csv = df_csv.rename(columns={"epitope": "peptide"})
+
     if "uniprot_id" not in df_csv.columns:
         raise ValueError("The input CSV file must contain 'uniprot_id' column.")
 
@@ -102,10 +107,13 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
     df_csv.to_csv(".input_NetCleave.csv", index=False)
 
     # Run the NetCleave
+    python_path_env = "/home/lavane/micromamba/envs/horus/bin/python"
+    # python_path_env = "/home/perry/miniconda3/envs/horus/bin/python"
+
     try:
         proc = subprocess.Popen(
             [
-                "/home/perry/miniconda3/envs/horus/bin/python",
+                python_path_env,
                 predigNetcleave_path,
                 "--predict",
                 ".input_NetCleave.csv",
@@ -149,7 +157,9 @@ def runPredigNOAH(df_csv: pd.DataFrame, predigNOAH_path: str, model: str) -> pd.
         )
 
     if "hla_allele" in df_csv.columns:
-        df_csv = df_csv.rename(columns={"HLA_allele": "HLA"})
+        df_csv = df_csv.rename(columns={"hla_allele": "allele"})
+    if "HLA_allele" in df_csv.columns:
+        df_csv = df_csv.rename(columns={"HLA_allele": "allele"})
     if "epitope" in df_csv.columns:
         df_csv = df_csv.rename(columns={"epitope": "peptide"})
 
@@ -202,8 +212,11 @@ def run_Predig_tapmap(
 ) -> pd.DataFrame:
 
     # Check if 'peptide' and 'allele' columns exist
-    if "peptide" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'peptide'.")
+    if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
+        raise ValueError("The input CSV file must contain 'peptide' and 'allele' column.")
+
+    if "epitope" in df_csv.columns:
+        df_csv = df_csv.rename(columns={"epitope": "peptide"})
 
     df_csv = df_csv[["peptide"]]
     dict_sizes = {}
