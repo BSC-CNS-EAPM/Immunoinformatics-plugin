@@ -3,20 +3,10 @@ Module containing the PredIG block for the Immunoinformatics plugin
 """
 
 import pandas as pd
-from HorusAPI import (
-    Extensions,
-    PluginBlock,
-    PluginVariable,
-    VariableGroup,
-    VariableTypes,
-)
-from utils import (
-    run_Predig_tapmap,
-    runPredigMHCflurry,
-    runPredigNetCleave,
-    runPredigNOAH,
-    runPredigPCH,
-)
+from HorusAPI import (Extensions, PluginBlock, PluginVariable, VariableGroup,
+                      VariableTypes)
+from utils import (run_Predig_tapmap, runPredigMHCflurry, runPredigNetCleave,
+                   runPredigNOAH, runPredigPCH)
 
 # TODO create the template flow
 
@@ -44,18 +34,18 @@ modelXGVar = PluginVariable(
     type=VariableTypes.STRING_LIST,
     defaultValue="/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model",
 )
-input_csv_group = VariableGroup(
-    id="file_variable_group",
-    name="File variable group",
-    description="Input with the csv file format.",
-    variables=[inputCSV, modelXGVar],
-)
-input_txt_group = VariableGroup(
-    id="txt_variable_group",
-    name="TxtBox variable group",
-    description="Input with the txt format.",
-    variables=[inputTxtbox, modelXGVar],
-)
+# input_csv_group = VariableGroup(
+#     id="file_variable_group",
+#     name="File variable group",
+#     description="Input with the csv file format.",
+#     variables=[inputCSV, modelXGVar],
+# )
+# input_txt_group = VariableGroup(
+#     id="txt_variable_group",
+#     name="TxtBox variable group",
+#     description="Input with the txt format.",
+#     variables=[inputTxtbox, modelXGVar],
+# )
 
 
 # ==========================#
@@ -134,14 +124,24 @@ def runPredIG(block: PluginBlock):
 
     import xgboost as xgb
 
-    # Get the input file
-    if block.selectedInputGroup == input_txt_group.id:
-        inputFile = str(block.inputs.get(inputTxtbox.id))
-        with open("input.csv", "w", encoding="utf-8") as file:
-            file.write(inputFile)
-        inputFile = "input.csv"
-    else:
+    # Get the input file from group
+    # if block.selectedInputGroup == input_txt_group.id:
+    #     inputFile = str(block.inputs.get(inputTxtbox.id))
+    #     with open("input.csv", "w", encoding="utf-8") as file:
+    #         file.write(inputFile)
+    #     inputFile = "input.csv"
+    # else:
+    #     inputFile = block.inputs.get(inputCSV.id, None)
+
+    inputtxt = block.inputs.get(inputTxtbox.id, None)
+    if inputtxt is None or inputtxt == "":
         inputFile = block.inputs.get(inputCSV.id, None)
+        if inputFile is None or inputFile == "":
+            raise Exception("No input file was provided")
+    else:
+        with open("input.csv", "w", encoding="utf-8") as file:
+            file.write(inputtxt)
+        inputFile = "input.csv"
 
     if inputFile is None:
         raise Exception("No input file was provided")
@@ -335,6 +335,6 @@ predigBlock = PluginBlock(
         alphaVar,
         precursorLenVar,
     ],
-    inputGroups=[input_csv_group, input_txt_group],
+    inputs=[inputCSV, inputTxtbox, modelXGVar],
     outputs=[outputPredIG],
 )
