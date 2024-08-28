@@ -34,6 +34,10 @@ def create_plugin():
 
     immunoPlugin.addBlock(predig_modelsBlock)
 
+    from Blocks.Tap import tapBlock  # type: ignore
+
+    immunoPlugin.addBlock(tapBlock)
+
     # ========== Configs ========== #
     from Configs.noahConfig import noahExecutableConfig
 
