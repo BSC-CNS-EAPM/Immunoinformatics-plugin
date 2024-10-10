@@ -11,7 +11,7 @@ def create_plugin():
     """
     # ========== Plugin Definition ========== #
 
-    immunoPlugin = Plugin(id="Immuno")
+    immunoPlugin = Plugin()
 
     # ========== Blocks ========== #
     from Blocks.PredIG import predigBlock  # type: ignore
