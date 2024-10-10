@@ -3,3 +3,6 @@ Immunoinformatics/deps/
 *.ipynb
 
 __pycache__/
+
+Immunoinformatics/config
+
