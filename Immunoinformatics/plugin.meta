@@ -1,4 +1,5 @@
 {
+  "id": "immuno",
   "name": "Immunoinformatics",
   "description": "The Immunoinformatics utilities plugin for Horus",
   "author": "BSC",

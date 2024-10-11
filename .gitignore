@@ -137,3 +137,6 @@ Immunoinformatics/config
 *.ipynb
 
 __pycache__/
+
+Immunoinformatics/config
+
