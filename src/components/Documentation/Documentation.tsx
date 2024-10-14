@@ -6,7 +6,7 @@ export function DocumentationButton() {
 
   return (
     <>
-      <Anchor href={docsURL} target="_blank">
+      <Anchor href={docsURL} target="_blank" download>
         <Button leftSection={<IconBook2 size={18} />} variant="outline">
           Documentation
         </Button>
