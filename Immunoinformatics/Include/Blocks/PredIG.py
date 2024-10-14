@@ -3,37 +3,62 @@ Module containing the PredIG block for the Immunoinformatics plugin
 """
 
 import pandas as pd
-from HorusAPI import (Extensions, PluginBlock, PluginVariable, VariableGroup,
-                      VariableTypes)
-from utils import (run_Predig_tapmap, runPredigMHCflurry, runPredigNetCleave,
-                   runPredigNOAH, runPredigPCH)
 
-# TODO create the template flow
+import random
+
+from typing import Union
+
+from HorusAPI import (
+    Extensions,
+    PluginBlock,
+    PluginVariable,
+    CustomVariable,
+    VariableTypes,
+    InputBlock,
+)
+from utils import (
+    run_Predig_tapmap,
+    runPredigMHCflurry,
+    runPredigNetCleave,
+    runPredigNOAH,
+    runPredigPCH,
+)
+
+
+from Pages.setup_predig import setup_predig_page
+
+setup_predig_variable = CustomVariable(
+    id="setup_predig",
+    name="Setup PredIG",
+    description="Setup the PredIG simulation",
+    customPage=setup_predig_page,
+    type=VariableTypes.ANY,
+)
 
 
 # ==========================#
 # Variable inputs
 # ==========================#
-inputCSV = PluginVariable(
-    name="Input CSV",
-    id="input_csv",
-    description="The input csv with the epitope and presenting HLA-I allele.",
-    type=VariableTypes.FILE,
-    allowedValues=["csv"],
-)
-inputTxtbox = PluginVariable(
-    name="Input txtbox",
-    id="input_txtbox",
-    description="The input txt with the epitope and presenting HLA-I allele.",
-    type=VariableTypes.TEXT_AREA,
-)
-modelXGVar = PluginVariable(
-    name="PredIG model",
-    id="modelXGvar",
-    description="The PredIG model.",
-    type=VariableTypes.STRING_LIST,
-    defaultValue="/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model",
-)
+# inputCSV = PluginVariable(
+#     name="Input CSV",
+#     id="input_csv",
+#     description="The input csv with the epitope and presenting HLA-I allele.",
+#     type=VariableTypes.FILE,
+#     allowedValues=["csv"],
+# )
+# inputTxtbox = PluginVariable(
+#     name="Input txtbox",
+#     id="input_txtbox",
+#     description="The input txt with the epitope and presenting HLA-I allele.",
+#     type=VariableTypes.TEXT_AREA,
+# )
+# modelXGVar = PluginVariable(
+#     name="PredIG model",
+#     id="modelXGvar",
+#     description="The PredIG model.",
+#     type=VariableTypes.STRING_LIST,
+#     defaultValue="/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model",
+# )
 # input_csv_group = VariableGroup(
 #     id="file_variable_group",
 #     name="File variable group",
@@ -63,55 +88,55 @@ outputPredIG = PluginVariable(
 ##############################
 #       Other variables      #
 ##############################
-seedVar = PluginVariable(
-    name="Seed",
-    id="seed",
-    description="The seed for the random number generator.",
-    type=VariableTypes.INTEGER,
-    defaultValue=1234,
-)
-modelVar = PluginVariable(
-    name="Model",
-    id="model",
-    description="The model to use.",
-    type=VariableTypes.FILE,
-    defaultValue="/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
-)
-hlaVar = PluginVariable(
-    name="HLA allele",
-    id="HLA_allele",
-    description="The HLA allele to use.",
-    type=VariableTypes.STRING,
-    defaultValue="HLA-A02:01",
-)
-peptideLenVar = PluginVariable(
-    name="Peptide length",
-    id="peptide_len",
-    description="The length of the peptide. Give a list of sizes",
-    type=VariableTypes.NUMBER_LIST,
-    defaultValue=None,
-)
-matVar = PluginVariable(
-    name="Matrix",
-    id="mat",
-    description="The matrix to use.",
-    type=VariableTypes.FILE,
-    defaultValue="/home/perry/data/Programs/Immuno/netCTLpan-1.1/data/tap.logodds.mat",
-)
-alphaVar = PluginVariable(
-    name="Alpha",
-    id="alpha",
-    description="The alpha value to use.",
-    type=VariableTypes.FLOAT,
-    defaultValue=None,
-)
-precursorLenVar = PluginVariable(
-    name="Precursor length",
-    id="precursor_len",
-    description="The precursor length to use.",
-    type=VariableTypes.INTEGER,
-    defaultValue=None,
-)
+# seedVar = PluginVariable(
+#     name="Seed",
+#     id="seed",
+#     description="The seed for the random number generator.",
+#     type=VariableTypes.INTEGER,
+#     defaultValue=1234,
+# )
+# modelVar = PluginVariable(
+#     name="Model",
+#     id="model",
+#     description="The model to use.",
+#     type=VariableTypes.FILE,
+#     defaultValue="/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
+# )
+# hlaVar = PluginVariable(
+#     name="HLA allele",
+#     id="HLA_allele",
+#     description="The HLA allele to use.",
+#     type=VariableTypes.STRING,
+#     defaultValue="HLA-A02:01",
+# )
+# peptideLenVar = PluginVariable(
+#     name="Peptide length",
+#     id="peptide_len",
+#     description="The length of the peptide. Give a list of sizes",
+#     type=VariableTypes.NUMBER_LIST,
+#     defaultValue=None,
+# )
+# matVar = PluginVariable(
+#     name="Matrix",
+#     id="mat",
+#     description="The matrix to use.",
+#     type=VariableTypes.FILE,
+#     defaultValue="/home/perry/data/Programs/Immuno/netCTLpan-1.1/data/tap.logodds.mat",
+# )
+# alphaVar = PluginVariable(
+#     name="Alpha",
+#     id="alpha",
+#     description="The alpha value to use.",
+#     type=VariableTypes.FLOAT,
+#     defaultValue=None,
+# )
+# precursorLenVar = PluginVariable(
+#     name="Precursor length",
+#     id="precursor_len",
+#     description="The precursor length to use.",
+#     type=VariableTypes.INTEGER,
+#     defaultValue=None,
+# )
 
 
 # Align action block
@@ -133,33 +158,47 @@ def runPredIG(block: PluginBlock):
     # else:
     #     inputFile = block.inputs.get(inputCSV.id, None)
 
-    inputtxt = block.inputs.get(inputTxtbox.id, None)
-    if inputtxt is None or inputtxt == "":
-        inputFile = block.inputs.get(inputCSV.id, None)
-        if inputFile is None or inputFile == "":
-            raise Exception("No input file was provided")
-    else:
-        with open("input.csv", "w", encoding="utf-8") as file:
-            file.write(inputtxt)
-        inputFile = "input.csv"
+    # Get the input from the setup
+    input_setup: Union[dict, None] = block.variables.get(setup_predig_variable.id, None)
 
-    if inputFile is None:
-        raise Exception("No input file was provided")
+    if not input_setup:
+        raise ValueError(
+            "No input setup was provided. Please click on the 'Configure' button and save the setup."
+        )
+
+    input_text = input_setup.get("input_text")
+    if input_text is None or input_text == "":
+        raise ValueError("No input csv was provided.")
+
+    # If the file contains tab spaces, save a .tsv file
+    if "\t" in input_text:
+        input_text = input_text.replace("\t", ",")
+    elif "," in input_text:
+        pass
+    else:
+        raise ValueError("The input file must contain tab or comma separated values.")
+
+    input_file = "input.csv"
+    with open(input_file, "w", encoding="utf-8") as file:
+        file.write(input_text)
 
     # Get the seed
-    seed = int(block.variables.get(seedVar.id, 123))
+    seed = int(input_setup.get("seed", random.randint(0, 10000)))
+
     # TODO have changed the paths for the lavane, need to be chenged back for perry
-    model = block.inputs.get(
-        modelVar.id,
+    model = input_setup.get(
+        "model",
         "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
     )
 
     # HLA_allele = block.variables.get(hlaVar.id, "HLA-A02:01")
-    peptide_len = block.variables.get(peptideLenVar.id, None)  # 8..14
+    peptide_len = input_setup.get("peptide_len", None)
     if peptide_len is not None and isinstance(peptide_len, str):
         raise ValueError("The peptide length must be a list of integers")
 
-    modelXG_name = block.variables.get(modelXGVar.id, None)
+    peptide_len = [int(p) for p in peptide_len]
+
+    modelXG_name = input_setup.get("modelXG", "PredIG-NeoA")
     if modelXG_name == "PredIG-NonCan":
         modelXG = "/home/perry/data/Programs/Immuno/Predig/spw_indep2_rescale_predig_model.model"
     elif modelXG_name == "PredIG-Path":
@@ -169,20 +208,30 @@ def runPredIG(block: PluginBlock):
             "/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model"
         )
 
-    mat = block.variables.get(matVar.id, None)
-    alpha = block.variables.get(alphaVar.id, None)
-    precursor_len = block.variables.get(precursorLenVar.id, None)
+    mat = input_setup.get(
+        "mat", "/home/perry/data/Programs/Immuno/netCTLpan-1.1/data/tap.logodds.mat"
+    )
+
+    if mat is None or mat == "":
+        mat = "/home/perry/data/Programs/Immuno/netCTLpan-1.1/data/tap.logodds.mat"
+
+    alpha = input_setup.get("alpha")
+
+    precursor_len = input_setup.get("precursor_len")
 
     # Get the PCH path
     pchPath = block.config.get(
         "PCH_path", "/home/albertcs/Projects/ROC/pch_inout/predig_pch_calc.R"
     )
+
     # Get the MHCflurry path
     mhcflurryPath = block.config.get("MHC_path", "mhcflurry-predict")
+
     # Get the NetCleave path
     netCleavePath = block.config.get(
         "cleave_path", "/home/perry/data/Github/NetCleave/NetCleave.py"
     )
+
     # Get the NOah path
     noahPath = block.config.get(
         "noah_path", "/home/perry/data/Github/Neoantigens-NOAH/noah/main_NOAH.py"
@@ -195,10 +244,10 @@ def runPredIG(block: PluginBlock):
 
     # /home/perry/data/Github/Neoantigens-NOAH/noah/main_NOAH.py
     # Check if the input file is valid
-    if not os.path.isfile(inputFile):
-        raise Exception("The input file is not valid")
+    if not os.path.isfile(input_file):
+        raise ValueError("The input file is not valid")
 
-    df = pd.read_csv(inputFile)
+    df = pd.read_csv(input_file)
 
     if df.shape[0] > 500:
         raise ValueError("The input CSV file must contain less than 500 rows.")
@@ -322,19 +371,20 @@ def runPredIG(block: PluginBlock):
     block.setOutput(outputPredIG.id, "predig_output.csv")
 
 
-predigBlock = PluginBlock(
+predigBlock = InputBlock(
     name="PredIG",
     description="Predicts T-cell immunogenicity of given epitope and HLA-I allele pairs (pHLAs). Max 500 queries.",
     action=runPredIG,
-    variables=[
-        seedVar,
-        modelVar,
-        hlaVar,
-        peptideLenVar,
-        matVar,
-        alphaVar,
-        precursorLenVar,
-    ],
-    inputs=[inputCSV, inputTxtbox, modelXGVar],
-    outputs=[outputPredIG],
+    variable=setup_predig_variable,
+    # variables=[
+    #     seedVar,
+    #     modelVar,
+    #     hlaVar,
+    #     peptideLenVar,
+    #     matVar,
+    #     alphaVar,
+    #     precursorLenVar,
+    # ],
+    # inputs=[inputCSV, inputTxtbox, modelXGVar],
+    output=outputPredIG,
 )

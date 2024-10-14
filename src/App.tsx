@@ -1,13 +1,13 @@
-import '@mantine/core/styles.css';
+import "@mantine/core/styles.css";
 
-import { MantineProvider } from '@mantine/core';
-import { Router } from './Router';
-import { theme } from './theme';
+import { MantineProvider } from "@mantine/core";
+import { theme } from "./theme";
+import { SetupPredigMain } from "./pages/Setup.PredIG";
 
 export default function App() {
   return (
     <MantineProvider theme={theme}>
-      <Router />
+      <SetupPredigMain />
     </MantineProvider>
   );
 }

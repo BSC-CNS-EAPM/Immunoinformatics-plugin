@@ -64,9 +64,9 @@ def create_plugin():
 
     immunoPlugin.addPage(documentationViewPage)
 
-    from Pages.load_tables import load_page
+    from Pages.setup_predig import setup_predig_page
 
-    immunoPlugin.addPage(load_page)
+    immunoPlugin.addPage(setup_predig_page)
 
     # Return the plugin
     return immunoPlugin

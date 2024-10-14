@@ -1,7 +1,7 @@
 import os
 import shutil
 import subprocess
-
+import typing
 import pandas as pd
 
 
@@ -226,8 +226,8 @@ def run_Predig_tapmap(
     tapmap_path: str,
     mat: str,
     peptide_len: list[int],
-    alpha: float,
-    precursor_len: int,
+    alpha: typing.Union[float, None],
+    precursor_len: typing.Union[int, None],
 ) -> pd.DataFrame:
 
     # Check if 'peptide' and 'allele' columns exist

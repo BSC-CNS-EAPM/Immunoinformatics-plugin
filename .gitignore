@@ -137,6 +137,9 @@ Immunoinformatics/config
 *.ipynb
 
 __pycache__/
+*.pyc
 
 Immunoinformatics/config
 
+Immunoinformatics/Pages
+!Immunoinformatics/Pages/*.pdf
