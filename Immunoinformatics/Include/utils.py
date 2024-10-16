@@ -125,6 +125,10 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
     # python_path_env = "/home/lavane/micromamba/envs/horus/bin/python"
     python_path_env = "/home/perry/miniconda3/envs/horus/bin/python"
 
+    # --pred_input
+    # 1: fasta
+    # 2: uniprot
+    # 3: recombinant protein seq
     try:
         proc = subprocess.Popen(
             [
@@ -158,7 +162,7 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
 
 
 def runPredigNOAH(
-    df_csv: pd.DataFrame, predigNOAH_path: str, model: str
+    df_csv: pd.DataFrame, predigNOAH_path: str, model: str, python_exec: str = "python"
 ) -> pd.DataFrame:
 
     # Check if 'peptide' and 'allele' columns exist
@@ -190,7 +194,7 @@ def runPredigNOAH(
     try:
         with subprocess.Popen(
             [
-                "python",
+                python_exec,
                 predigNOAH_path,
                 "-i",
                 ".input_noah.csv",

@@ -39,6 +39,14 @@ def create_plugin():
     immunoPlugin.addBlock(tapBlock)
 
     # ========== Configs ========== #
+    from Configs.columns_to_delete import columns_to_delete_config
+
+    immunoPlugin.addConfig(columns_to_delete_config)
+
+    from Configs.python_exec import python_exec_config
+
+    immunoPlugin.addConfig(python_exec_config)
+
     from Configs.noahConfig import noahExecutableConfig
 
     immunoPlugin.addConfig(noahExecutableConfig)
@@ -67,6 +75,10 @@ def create_plugin():
     from Pages.setup_predig import setup_predig_page
 
     immunoPlugin.addPage(setup_predig_page)
+
+    from Pages.results import results_page
+
+    immunoPlugin.addPage(results_page)
 
     # Return the plugin
     return immunoPlugin

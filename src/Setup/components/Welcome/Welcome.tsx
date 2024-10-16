@@ -1,5 +1,5 @@
 import { Center, Text, Title } from "@mantine/core";
-import classes from "./Welcome.module.css";
+import classes from "../../../main.module.css";
 import { DocumentationButton } from "../Documentation/Documentation";
 
 export function Welcome() {

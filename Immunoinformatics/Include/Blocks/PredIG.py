@@ -32,7 +32,7 @@ setup_predig_variable = CustomVariable(
     name="Setup PredIG",
     description="Setup the PredIG simulation",
     customPage=setup_predig_page,
-    type=VariableTypes.ANY,
+    type=VariableTypes.ANY,  # type: ignore
 )
 
 
@@ -80,7 +80,7 @@ outputPredIG = PluginVariable(
     name="Output CSV",
     id="output_predig",
     description="The output csv",
-    type=VariableTypes.FILE,
+    type=VariableTypes.FILE,  # type: ignore
     allowedValues=["csv"],
 )
 
@@ -268,12 +268,17 @@ def runPredIG(block: PluginBlock):
     )
 
     print("Running NetCleave")
-    # Run the NetCleave
+    # Run the NetCleave / can be placed before to generate csv when case of Fasta
+    # When fasta set Hallele in input
     output_netcleave = runPredigNetCleave(df_csv=df, predigNetcleave_path=netCleavePath)
 
     print("Running NOAH")
+
+    python_exect = block.config.get("python_exec", "python")
     # Run the NOAH, ["HLA", "epitope", "NOAH_score"] id="HLA", "epitope"
-    output_noah = runPredigNOAH(df_csv=df, predigNOAH_path=noahPath, model=model)
+    output_noah = runPredigNOAH(
+        df_csv=df, predigNOAH_path=noahPath, model=model, python_exec=python_exect
+    )
 
     print("Running tapmat_pred_fsa")
     output_tapmap = run_Predig_tapmap(
@@ -346,29 +351,91 @@ def runPredIG(block: PluginBlock):
     df_joined = pd.concat([df_joined, pd.Series(predig_score, name="predig")], axis=1)
 
     df_joined["id"] = df_joined["hla_allele"] + "_" + df_joined["epitope"]
-    df_joined.to_csv("predig_output.csv", index=False)
+
+    # Rename and sort the columns
+    name_mapping = {
+        "Id": "ID",
+        "Epitope": "epitope",
+        "Hla_allele": "HLA_allele",
+        "Predig": "PredIG",
+        "NOAH": "NOAH",
+        "TAP": "TAP",
+        "Netcleave": "NetCleave",
+        "Mhcflurry_affinity": "mhcflurry_affinity",
+        "Mhcflurry_affinity_percentile": "mhcflurry_affinity_percentile",
+        "Mhcflurry_presentation_score": "mhcflurry_presentation_score",
+        "Mhcflurry_processing_score": "mhcflurry_processing_score",
+        "Hydroph_peptide": "Hydrophobicity_peptide",
+        "Mw_peptide": "MW_peptide",
+        "Charge_peptide": "Charge_peptide",
+        "Stab_peptide": "Stab_peptide",
+        "Tcr_contact": "TCR_contact",
+        "Hydroph_tcr_contact": "Hydrophobicity_tcr_contact",
+        "Mw_tcr_contact": "MW_tcr_contact",
+        "Charge_tcr_contact": "Charge_tcr_contact",
+    }
+
+    name_mapping = {key.lower(): value for key, value in name_mapping.items()}
+
+    df_joined = df_joined.rename(str.lower, axis="columns")
+
+    # Sort based on the mapping
+    df_joined = df_joined[name_mapping.keys()]
+
+    # Rename
+    df_joined = df_joined.rename(columns=name_mapping)
+
+    # Remove unwanted columns
+    columns_to_delete: list[str] = block.config.get("columns_to_delete", [])
+
+    columns_to_delete = [c.lower() for c in columns_to_delete]
+
+    for col in df_joined.columns:
+        if col.lower() in columns_to_delete:
+            df_joined = df_joined.drop(columns=col)
+
+    # Remove any *_output.csv file to prevent other programs messing the folder
+    import glob
+
+    for file in glob.glob("*output*.csv"):
+        os.remove(file)
+
+    # Save the results as a CSV
+    filename = block.flow.name + "_output.csv"
+    df_joined.to_csv(filename, index=False)
 
     print("PredIG simulations finished")
 
-    # html = df_joined.to_html(index=False)
+    safe_path = os.path.abspath(filename)
 
-    from itables import to_html_datatable
+    from App import AppDelegate  # type: ignore
 
-    html = to_html_datatable(
-        df_joined, display_logo_when_loading=False, maxRows=501, showIndex=True
+    if AppDelegate().mode == "webapp":
+
+        # Get only the last 3 components of the path /flo_dir/flow_results/results.csv
+        safe_path = "/".join(safe_path.split("/")[-3:])
+
+    print(f"Results are at: '{safe_path}'")
+
+    Extensions().open(
+        "immuno",
+        "results",
+        data={"csv": safe_path},
+        title="PredIG results",
     )
-    with open("interactive_table.html", "w", encoding="utf-8") as filehtml:
-        filehtml.write(html)
 
     Extensions().storeExtensionResults(
         "immuno",
-        "load_tables",
-        data={"path": os.path.abspath("interactive_table.html")},
-        title="NetCleave results",
+        "results",
+        data={"csv": safe_path},
+        title="PredIG results",
     )
 
-    # Set the output
-    block.setOutput(outputPredIG.id, "predig_output.csv")
+    # Save the blocklogs to a file
+    with open("predig.log", "w") as f:
+        f.write(block.blockLogs)
+
+    block.setOutput(outputPredIG.id, filename)
 
 
 predigBlock = InputBlock(

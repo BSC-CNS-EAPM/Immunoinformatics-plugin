@@ -6,4 +6,5 @@ setup_predig_page = PluginPage(
     name="Setup PredIG",
     description="Setup the PredIG simulation",
     html="index.html",  # The HTML file to load
+    hidden=True,
 )
