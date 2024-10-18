@@ -19,7 +19,6 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-    open: "results.html",
   },
   build: {
     outDir: "Immunoinformatics/Pages",

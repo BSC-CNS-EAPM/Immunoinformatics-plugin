@@ -4,17 +4,18 @@ declare global {
   }
 }
 
-export enum ModelTypes {
-  PROVIDED = "provided",
-  CUSTOM = "custom",
+export enum SimulationMode {
+  FASTA = "1",
+  UNIPROT = "2",
+  RECOMBINANT = "3",
 }
 
 export type PredIGVariables = {
+  simulation: SimulationMode;
   input_text: string;
   seed: number;
   modelXG: string;
-  predig_model_type: ModelTypes;
-  HLA_allele: string;
+  HLA_alleles: string;
   peptide_len: string[];
   mat: string;
   alpha: number;
@@ -22,6 +23,15 @@ export type PredIGVariables = {
 };
 
 export type VariableSetter<T> = {
+  validator?: (value: T) => string | boolean;
+  label: string;
+  description?: string;
   value: T;
+  file?: string;
   setValue: (newValue: T) => void;
+};
+
+export type SimulationModeProps = {
+  predIGVariables: PredIGVariables;
+  setPredIGVariables: (predIGVariables: PredIGVariables) => void;
 };

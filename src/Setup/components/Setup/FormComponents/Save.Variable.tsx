@@ -1,48 +1,31 @@
-import { Button, Image, Modal, Text } from "@mantine/core";
-import { PredIGVariables } from "../types";
-import { useState } from "react";
+import { Group, Image, Text } from "@mantine/core";
 import submit from "../../../static/submit.png";
+import { IconCircleCheck } from "@tabler/icons-react";
 
-export function ConfigurationSavedModal(props: {
-  predIGVariables: PredIGVariables;
-}) {
-  const { predIGVariables } = props;
-  const [isOpen, setIsOpen] = useState(false);
-
+export function ConfigurationSavedModal() {
   return (
     <>
-      <Modal
-        opened={isOpen}
-        onClose={() => setIsOpen(false)}
-        withCloseButton
-        centered
-      >
+      <Group align="center" justify="center">
+        <IconCircleCheck color="black" size={60} />
         <Text ta="center" size="lg" fw={700}>
           The PredIG configuration was correctly saved
         </Text>
-        <Text ta="center">
-          Close this setup view (Extensions → Close Extensions) and click on the
-          "Play" button of the PredIG block
-        </Text>
-        <Image
-          mt={20}
-          src={submit}
-          style={{
-            borderRadius: 10,
-            overflow: "hidden",
-            // boxShadow: "0px 0px 10px 0px rgba(0,0,0,0.5)",
-          }}
-        />
-      </Modal>
-      <Button
-        color="green"
-        onClick={() => {
-          setIsOpen(true);
-          parent.horus.setVariable(predIGVariables);
-        }}
-      >
-        Save configuration
-      </Button>
+      </Group>
+      <Text>
+        Close this setup view{" "}
+        <Text span fw="bold">
+          (Extensions → Close Extensions)
+        </Text>{" "}
+        and click on the "Play" button of the PredIG block. Once the simulation
+        is finished, you can visualize the results with the{" "}
+        <Text span fw="bold">
+          Extensions → PredIG Results
+        </Text>{" "}
+        button that will appear on top of the block.
+      </Text>
+      <div>
+        <Image src={submit} radius="md" h={300} fit="contain" />
+      </div>
     </>
   );
 }

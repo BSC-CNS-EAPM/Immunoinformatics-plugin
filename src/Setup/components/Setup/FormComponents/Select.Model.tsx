@@ -5,7 +5,7 @@ export const PREDIG_MODELS = ["PredIG-NeoA", "PredIG-NonCan", "PredIG-Path"];
 
 export function SelectModel({ value, setValue }: VariableSetter<string>) {
   return (
-    <Input.Wrapper label="Select Model">
+    <Input.Wrapper label="Select Model" withAsterisk>
       <Radio.Group
         value={value}
         onChange={setValue}
@@ -14,7 +14,7 @@ export function SelectModel({ value, setValue }: VariableSetter<string>) {
       >
         <Group>
           {PREDIG_MODELS.map((model) => (
-            <Radio key={model} value={model} label={model} />
+            <Radio key={model} value={model} label={model} name={model} />
           ))}
         </Group>
       </Radio.Group>

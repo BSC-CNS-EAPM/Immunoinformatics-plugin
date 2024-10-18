@@ -96,12 +96,12 @@ def download_results():
     if simulation:
         folder_to_download = os.path.dirname(full_csv)
         folder_name = os.path.basename(folder_to_download)
-        zip_name = folder_name + ".zip"
         full_zip_path = os.path.join(os.path.dirname(folder_to_download), folder_name)
+        full_zip_path_with_extension = full_zip_path + ".zip"
 
         # Compress the folder
-        if os.path.exists(full_zip_path):
-            os.remove(full_zip_path)
+        if os.path.exists(full_zip_path_with_extension):
+            os.remove(full_zip_path_with_extension)
 
         import shutil
 
@@ -114,10 +114,12 @@ def download_results():
 
         download_name = name + ".zip" if name else None
 
+        full_zip_path = full_zip_path_with_extension
+
         @after_this_request
         def remove_file(response):
-            if os.path.exists(full_zip_path):
-                os.remove(full_zip_path)
+            if os.path.exists(full_zip_path_with_extension):
+                os.remove(full_zip_path_with_extension)
 
     else:
         # Download the csv

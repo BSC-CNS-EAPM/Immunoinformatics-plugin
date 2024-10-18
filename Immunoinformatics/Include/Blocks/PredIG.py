@@ -6,7 +6,7 @@ import pandas as pd
 
 import random
 
-from typing import Union
+from typing import Union, cast
 
 from HorusAPI import (
     Extensions,
@@ -170,15 +170,68 @@ def runPredIG(block: PluginBlock):
     if input_text is None or input_text == "":
         raise ValueError("No input csv was provided.")
 
-    # If the file contains tab spaces, save a .tsv file
-    if "\t" in input_text:
-        input_text = input_text.replace("\t", ",")
-    elif "," in input_text:
-        pass
-    else:
-        raise ValueError("The input file must contain tab or comma separated values.")
+    simulation = input_setup.get("simulation")
 
-    input_file = "input.csv"
+    if simulation is None:
+        raise ValueError("No simulation mode was provided.")
+
+    simulation = int(simulation)
+
+    alleles = ""
+    if simulation != 1:
+        # If the file contains tab spaces, save a .tsv file
+        if "\t" in input_text:
+            input_text = input_text.replace("\t", ",")
+        elif "," in input_text:
+            pass
+        else:
+            raise ValueError(
+                "The input file must contain tab or comma separated values."
+            )
+        input_file = "input.csv"
+
+    else:
+        alleles = input_setup.get("HLA_alleles", "")
+        if not alleles or alleles == "":
+            raise ValueError(
+                "No HLA alleles were provided. Those are required when running PredIG with fasta files."
+            )
+
+        import re
+
+        wrong_alleles = []
+        for allele in alleles.split("\n"):
+            match = re.match(r"^HLA-[ABC]\*[0-9]{1,3}:[0-9]{1,3}$", allele)
+            if not match:
+                wrong_alleles.append(allele)
+
+        if len(wrong_alleles) > 0:
+
+            raise ValueError(
+                "Please modify or remove the alleles in your list that are not part of the HLA 4-digits resolution format established by IMGT. e.g HLA-A*02:01 or HLA-A*100:101. Binding predictions within PredIG can not interpret other allelic nomenclatures correctly: \n{}".format(
+                    "\n".join(wrong_alleles)
+                )
+            )
+        alleles = "\n".join(
+            [allele for allele in alleles.split("\n") if allele.strip() != ""]
+        )
+
+        input_file = "input.fasta"
+
+    simulation_map = {
+        1: "FASTA",
+        2: "UNIPROT",
+        3: "RECOMBINANT",
+    }
+
+    print("====================INPUTS======================")
+    print("Input file: ", input_file)
+    print("Input text: ", input_text)
+    if alleles:
+        print("HLA alleles: ", alleles)
+    print(f"Simulation type: {simulation_map[simulation]} ({simulation})")
+    print("==========================================")
+
     with open(input_file, "w", encoding="utf-8") as file:
         file.write(input_text)
 
@@ -247,10 +300,51 @@ def runPredIG(block: PluginBlock):
     if not os.path.isfile(input_file):
         raise ValueError("The input file is not valid")
 
-    df = pd.read_csv(input_file)
+    df = None
+    fasta = None
+    if simulation == 1:
+        fasta = input_file
+    else:
+        df = pd.read_csv(input_file)
 
-    if df.shape[0] > 500:
-        raise ValueError("The input CSV file must contain less than 500 rows.")
+        if df.shape[0] > 500:
+            raise ValueError("The input CSV file must contain less than 500 rows.")
+
+    print("Running NetCleave")
+    # Run the NetCleave / can be placed before to generate csv when case of Fasta
+    # When fasta set Hallele in input
+    output_netcleave = runPredigNetCleave(
+        df_csv=df, predigNetcleave_path=netCleavePath, mode=simulation, fasta=fasta
+    )
+
+    # If we are runnign with a fasta, concatenate the results of netcleave with HLA alleles
+    if simulation == 1:
+        df = output_netcleave
+
+        # Add a new column to the dataframe, the HLA alleles
+        alleles: str = input_setup.get("HLA_alleles", "")
+
+        list_alleles = alleles.split("\n")
+
+        # Initialize an empty list to hold DataFrames
+        df_list = []
+
+        # Loop through the list of values and create a DataFrame for each one
+        for value in list_alleles:
+            df_copy = df.copy()
+            df_copy["HLA_allele"] = value.strip()
+            df_list.append(df_copy)
+
+        df = pd.concat(df_list, ignore_index=True)
+
+        # Remove the index colum (does not have names)
+        df = df.reset_index(drop=True)
+
+        # Save as csv
+        df.to_csv("input_fasta.csv", index=False)
+
+    else:
+        df = cast(pd.DataFrame, df)
 
     # Run the PCH ["epitope"]
     print("Running PCH")
@@ -266,11 +360,6 @@ def runPredIG(block: PluginBlock):
         df_csv=df,
         predigMHCflurry_path=mhcflurryPath,
     )
-
-    print("Running NetCleave")
-    # Run the NetCleave / can be placed before to generate csv when case of Fasta
-    # When fasta set Hallele in input
-    output_netcleave = runPredigNetCleave(df_csv=df, predigNetcleave_path=netCleavePath)
 
     print("Running NOAH")
 
@@ -440,7 +529,7 @@ def runPredIG(block: PluginBlock):
 
 predigBlock = InputBlock(
     name="PredIG",
-    description="Predicts T-cell immunogenicity of given epitope and HLA-I allele pairs (pHLAs). Max 500 queries.",
+    description="An interpretable\n predictor of CD8+\n T-cell epitope immunogenicity. PredIG predicts the immunogenicity of given pairs of epitope and HLA-I alleles. PredIG predicts the immunogenicity of full proteins vs. a list of HLA-I alleles. PredIG score is a probability from 0 to 1, being 1 the max likelihood for pHLA-I immunogenicity. Note: Max 500 queries per submission.",
     action=runPredIG,
     variable=setup_predig_variable,
     # variables=[

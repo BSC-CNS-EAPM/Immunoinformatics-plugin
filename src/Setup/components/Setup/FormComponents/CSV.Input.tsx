@@ -7,8 +7,6 @@ import { VariableSetter } from "../types";
 import AnimateHeight from "react-animate-height";
 
 export function CSVInput(props: VariableSetter<string>) {
-  const [isOverWithFile, setIsOverWithFile] = useState(false);
-
   return (
     <>
       <TextInput {...props} />
@@ -17,9 +15,16 @@ export function CSVInput(props: VariableSetter<string>) {
   );
 }
 
-function TextInput({ value, setValue }: VariableSetter<string>) {
+function TextInput({
+  label,
+  description,
+  value,
+  setValue,
+  validator,
+}: VariableSetter<string>) {
   return (
     <Textarea
+      withAsterisk
       onDrop={(event) => {
         event.preventDefault();
 
@@ -33,15 +38,16 @@ function TextInput({ value, setValue }: VariableSetter<string>) {
       resize="vertical"
       minRows={10}
       maxRows={10}
-      label="Input CSV/TSV"
-      description="The input must have the following columns: peptide,allele,uniprot_id"
+      label={label}
+      description={description}
       value={value}
+      error={validator ? validator(value) : undefined}
       onChange={(event) => setValue(event.target.value as string)}
     />
   );
 }
 
-function DragAndDrop({ value, setValue }: VariableSetter<string>) {
+function DragAndDrop({ file, value, setValue }: VariableSetter<string>) {
   const [hoveringFile, setHoveringFile] = useState(false);
 
   useEffect(() => {
@@ -53,7 +59,9 @@ function DragAndDrop({ value, setValue }: VariableSetter<string>) {
   return (
     <AnimateHeight duration={300} height={value ? 0 : "auto"}>
       <Stack align="center">
-        <Text>OR</Text>
+        <Text fw={700} size="xl">
+          OR
+        </Text>
         <Dropzone
           w={"100%"}
           onDrop={async (files) => setValue(await readFile(files[0]))}
@@ -82,7 +90,7 @@ function DragAndDrop({ value, setValue }: VariableSetter<string>) {
             )}
 
             <Text size="xl" inline ta="center">
-              Drag a CSV/TSV file here or click to select files
+              Drag and drop a {file}
             </Text>
           </Stack>
         </Dropzone>

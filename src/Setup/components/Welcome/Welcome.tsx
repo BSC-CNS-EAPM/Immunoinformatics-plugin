@@ -6,7 +6,6 @@ export function Welcome() {
   return (
     <>
       <Title className={classes.title} ta="center" mt={100}>
-        Setup{" "}
         <Text
           inherit
           variant="gradient"

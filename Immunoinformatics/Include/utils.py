@@ -103,23 +103,37 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
     return df
 
 
-def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
+def runPredigNetCleave(
+    predigNetcleave_path: str,
+    mode: int,
+    df_csv: typing.Optional[pd.DataFrame] = None,
+    fasta: typing.Optional[str] = None,
+):
 
-    # Check if 'peptide' and 'allele' columns exist
-    if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
-        raise ValueError(
-            "The input CSV file must contain 'peptide' or 'epitope' column."
-        )
+    if df_csv is None and fasta is None:
+        raise ValueError("Either df_csv or fasta must be provided.")
 
-    if "epitope" in df_csv.columns:
-        df_csv = df_csv.rename(columns={"epitope": "peptide"})
+    net_cleave_input = ""
+    if df_csv is not None:
 
-    if "uniprot_id" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'uniprot_id' column.")
+        # Check if 'peptide' and 'allele' columns exist
+        if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
+            raise ValueError(
+                "The input CSV file must contain 'peptide' or 'epitope' column."
+            )
 
-    df_csv = df_csv[["peptide", "uniprot_id"]]
-    df_csv = df_csv.rename(columns={"peptide": "epitope"})
-    df_csv.to_csv(".input_NetCleave.csv", index=False)
+        if "epitope" in df_csv.columns:
+            df_csv = df_csv.rename(columns={"epitope": "peptide"})
+
+        if "uniprot_id" not in df_csv.columns:
+            raise ValueError("The input CSV file must contain 'uniprot_id' column.")
+
+        df_csv = df_csv[["peptide", "uniprot_id"]]
+        df_csv = df_csv.rename(columns={"peptide": "epitope"})
+        net_cleave_input = ".input_NetCleave.csv"
+        df_csv.to_csv(net_cleave_input, index=False)
+    elif fasta is not None:
+        net_cleave_input = fasta
 
     # Run the NetCleave
     # python_path_env = "/home/lavane/micromamba/envs/horus/bin/python"
@@ -135,9 +149,9 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
                 python_path_env,
                 predigNetcleave_path,
                 "--predict",
-                ".input_NetCleave.csv",
+                net_cleave_input,
                 "--pred_input",
-                str(2),
+                str(mode),
             ],
             # env=env,
             stdout=subprocess.PIPE,
@@ -149,13 +163,17 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
     except Exception as e:
         raise Exception(f"An error occurred while running the NetCleave: {e}")
 
-    output = "output_NetCleave.csv"
-    df = pd.read_csv("output/_NetCleave.csv")
+    if mode == 1:
+        output = "input_NetCleave.csv"
+    else:
+        output = "output_NetCleave.csv"
+
+    output = os.path.join("output", output)
+    df = pd.read_csv(output)
     df = df[["epitope", "prediction"]]
     df = df.rename(columns={"prediction": "netcleave"})
     df.to_csv(output, index=True)
 
-    os.remove(".input_NetCleave.csv")
     shutil.rmtree("output")
 
     return df
