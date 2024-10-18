@@ -527,9 +527,20 @@ def runPredIG(block: PluginBlock):
     block.setOutput(outputPredIG.id, filename)
 
 
+description = "An interpretable predictor of CD8+ T-cell epitope immunogenicity."
+description += (
+    "\nPredIG predicts the immunogenicity of given pairs of epitope and HLA-I alleles."
+)
+description += (
+    "\nPredIG predicts the immunogenicity of full proteins vs. a list of HLA-I alleles."
+)
+description += "\nPredIG score is a probability from 0 to 1, being 1 the max likelihood for pHLA-I immunogenicity."
+description += "\nNote: Max 500 queries per submission."
+
+
 predigBlock = InputBlock(
     name="PredIG",
-    description="An interpretable\n predictor of CD8+\n T-cell epitope immunogenicity. PredIG predicts the immunogenicity of given pairs of epitope and HLA-I alleles. PredIG predicts the immunogenicity of full proteins vs. a list of HLA-I alleles. PredIG score is a probability from 0 to 1, being 1 the max likelihood for pHLA-I immunogenicity. Note: Max 500 queries per submission.",
+    description=description,
     action=runPredIG,
     variable=setup_predig_variable,
     # variables=[
