@@ -317,7 +317,9 @@ def runPredIG(block: PluginBlock):
 
         for i, row in df.iterrows():
             if len(row) != column_lenght:
-                raise ValueError("The input CSV file must contain the same number of columns in each row.")
+                raise ValueError(
+                    "The input CSV file must contain the same number of columns in each row."
+                )
 
         if df.shape[0] > 500:
             raise ValueError("The input CSV file must contain less than 500 rows.")
@@ -537,6 +539,17 @@ def runPredIG(block: PluginBlock):
         f.write(block.blockLogs)
 
     block.setOutput(outputPredIG.id, filename)
+
+
+description = "An interpretable predictor of CD8+ T-cell epitope immunogenicity."
+description += (
+    "\nPredIG predicts the immunogenicity of given pairs of epitope and HLA-I alleles."
+)
+description += (
+    "\nPredIG predicts the immunogenicity of full proteins vs. a list of HLA-I alleles."
+)
+description += "\nPredIG score is a probability from 0 to 1, being 1 the max likelihood for pHLA-I immunogenicity."
+description += "\nNote: Max 500 queries per submission."
 
 
 predigBlock = InputBlock(
