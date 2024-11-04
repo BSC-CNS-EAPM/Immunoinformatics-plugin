@@ -20,6 +20,10 @@ const DEFAULT_SETUP: PredIGVariables = {
   precursor_len: 9,
 };
 
+const getEnumKeyByValue = (value: string, enumObj: any) => {
+  return Object.keys(enumObj).find((key) => enumObj[key] === value);
+};
+
 export function Setup() {
   const [predIGVariables, setPredIGVariables] = useState(DEFAULT_SETUP);
 
@@ -51,9 +55,23 @@ export function Setup() {
     <Stack m="lg" gap="lg">
       <Divider />
       <Stepper active={active} onStepClick={setActive}>
-        <Stepper.Step label="Exploration mode" />
-        <Stepper.Step label="Upload input" />
-        <Stepper.Step label="Simulation setup" />
+        <Stepper.Step
+          label="Exploration mode"
+          description={getEnumKeyByValue(
+            predIGVariables.simulation,
+            SimulationMode
+          )}
+        />
+        <Stepper.Step
+          label="Upload input"
+          description={
+            predIGVariables.input_text ? "Uploaded" : "Upload a file"
+          }
+        />
+        <Stepper.Step
+          label="Simulation setup"
+          description={predIGVariables.modelXG}
+        />
 
         <Stepper.Step label="Submit simulation" />
       </Stepper>
@@ -76,6 +94,9 @@ export function Setup() {
     </Stack>
   );
 }
+
+const UNIPROT_COLUMNS = "epitope,HLA_allele,uniprot_id";
+const RECOMBINANT_COLUMNS = "epitope,HLA_allele,protein_seq,protein_name";
 
 function StepViewer({
   step,
@@ -110,8 +131,48 @@ function StepViewer({
           description={
             predIGVariables.simulation === SimulationMode.FASTA
               ? undefined
-              : "The input must have the following columns: peptide, allele, uniprot_id"
+              : `The input CSV must have the following columns: ${predIGVariables.simulation === SimulationMode.RECOMBINANT ? RECOMBINANT_COLUMNS : UNIPROT_COLUMNS}`
           }
+          validator={(value) => {
+            if (predIGVariables.simulation === SimulationMode.RECOMBINANT) {
+              // The first line of recombinant must be epitope, HLA_allele, protein_seq
+              if (value.split("\n")[0] !== RECOMBINANT_COLUMNS) {
+                return `The first line must be '${RECOMBINANT_COLUMNS}'`;
+              }
+
+              // For the rest of rows, check the number of columns
+              const lines = value.split("\n");
+              for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                if (
+                  line.split(",").length !==
+                  RECOMBINANT_COLUMNS.split(",").length
+                ) {
+                  return `Line ${i + 1} must have ${RECOMBINANT_COLUMNS.split(",").length} columns`;
+                }
+              }
+            }
+
+            if (predIGVariables.simulation === SimulationMode.UNIPROT) {
+              // The first line of recombinant must be peptide,allele,uniprot_id
+              if (value.split("\n")[0] !== UNIPROT_COLUMNS) {
+                return `The first line must be '${UNIPROT_COLUMNS}'`;
+              }
+
+              // For the rest of rows, they have to be at least 3 columns
+              const lines = value.split("\n");
+              for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                if (
+                  line.split(",").length !== UNIPROT_COLUMNS.split(",").length
+                ) {
+                  return `Line ${i + 1} must have ${UNIPROT_COLUMNS.split(",").length} columns`;
+                }
+              }
+            }
+
+            return false;
+          }}
           value={predIGVariables.input_text}
           setValue={(input_text) =>
             setPredIGVariables({ ...predIGVariables, input_text })

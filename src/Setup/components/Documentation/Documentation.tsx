@@ -15,17 +15,17 @@ const docs = [
   {
     label: "Abstract",
     icon: <IconBook2 size={18} />,
-    view: <PDFView url="./oct_predig_abstract.pdf" name="Abstract" />,
+    view: <PDFView url="./oct_predig_abstract_web.pdf" name="Abstract" />,
   },
   {
     label: "Instructions",
     icon: <IconListCheck size={18} />,
-    view: <PDFView url="./predig_instructions.pdf" name="Instructions" />,
+    view: <PDFView url="./predig_instructions_web.pdf" name="Instructions" />,
   },
   {
     label: "Output format",
     icon: <IconFileTypeCsv size={18} />,
-    view: <PDFView url="./predig_outputformat.pdf" name="Output format" />,
+    view: <PDFView url="./predig_outputformat_web.pdf" name="Output format" />,
   },
   {
     label: "Downloads",

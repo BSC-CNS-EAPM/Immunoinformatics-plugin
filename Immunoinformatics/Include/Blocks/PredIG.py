@@ -166,9 +166,10 @@ def runPredIG(block: PluginBlock):
             "No input setup was provided. Please click on the 'Configure' button and save the setup."
         )
 
-    input_text = input_setup.get("input_text")
+    input_text: Union[str, None] = input_setup.get("input_text")
     if input_text is None or input_text == "":
-        raise ValueError("No input csv was provided.")
+        raise ValueError("No input CSV was provided.")
+    input_text = cast(str, input_text)
 
     simulation = input_setup.get("simulation")
 
@@ -189,7 +190,6 @@ def runPredIG(block: PluginBlock):
                 "The input file must contain tab or comma separated values."
             )
         input_file = "input.csv"
-
     else:
         alleles = input_setup.get("HLA_alleles", "")
         if not alleles or alleles == "":
@@ -233,6 +233,7 @@ def runPredIG(block: PluginBlock):
     print("==========================================")
 
     with open(input_file, "w", encoding="utf-8") as file:
+        # Clean the input CSV by removing unnedded quotes "" before writting
         file.write(input_text)
 
     # Get the seed
@@ -303,9 +304,20 @@ def runPredIG(block: PluginBlock):
     df = None
     fasta = None
     if simulation == 1:
-        fasta = input_file
+        fasta = input_file.replace('"', "").replace("'", "")
     else:
         df = pd.read_csv(input_file)
+
+        # Replace cells that have "" or ''
+        df = df.replace('"', "")
+        df = df.replace("'", "")
+
+        # Verify that each row has the correct number of columns (all are filled)
+        column_lenght = df.shape[1]
+
+        for i, row in df.iterrows():
+            if len(row) != column_lenght:
+                raise ValueError("The input CSV file must contain the same number of columns in each row.")
 
         if df.shape[0] > 500:
             raise ValueError("The input CSV file must contain less than 500 rows.")
@@ -529,7 +541,7 @@ def runPredIG(block: PluginBlock):
 
 predigBlock = InputBlock(
     name="PredIG",
-    description="An interpretable\n predictor of CD8+\n T-cell epitope immunogenicity. PredIG predicts the immunogenicity of given pairs of epitope and HLA-I alleles. PredIG predicts the immunogenicity of full proteins vs. a list of HLA-I alleles. PredIG score is a probability from 0 to 1, being 1 the max likelihood for pHLA-I immunogenicity. Note: Max 500 queries per submission.",
+    description="An interpretable predictor of CD8+ T-cell epitope immunogenicity.\nPredIG predicts the immunogenicity of given pairs of epitope and HLA-I alleles.\nPredIG predicts the immunogenicity of full proteins vs. a list of HLA-I alleles.\nPredIG score is a probability from 0 to 1, being 1 the max likelihood for pHLA-I immunogenicity.\n\nNote: Max 500 queries per submission.",
     action=runPredIG,
     variable=setup_predig_variable,
     # variables=[

@@ -1,5 +1,5 @@
 import { Stack, Textarea } from "@mantine/core";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Text } from "@mantine/core";
 import { IconFile, IconFileUpload } from "@tabler/icons-react";
 import { Dropzone } from "@mantine/dropzone";
@@ -22,6 +22,14 @@ function TextInput({
   setValue,
   validator,
 }: VariableSetter<string>) {
+  const [hasError, setHasError] = useState<string | boolean>(false);
+
+  useEffect(() => {
+    if (validator) {
+      setHasError(validator(value));
+    }
+  }, [value]);
+
   return (
     <Textarea
       withAsterisk
@@ -41,7 +49,7 @@ function TextInput({
       label={label}
       description={description}
       value={value}
-      error={validator ? validator(value) : undefined}
+      error={hasError}
       onChange={(event) => setValue(event.target.value as string)}
     />
   );
@@ -106,7 +114,9 @@ async function readFile(file: File): Promise<string> {
 
     reader.onload = (event) => {
       if (event.target) {
-        resolve(event.target.result?.toString() ?? "");
+        resolve(
+          event.target.result?.toString()?.replaceAll("\r\n", "\n") ?? ""
+        );
       }
     };
 

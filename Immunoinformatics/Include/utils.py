@@ -103,6 +103,11 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
     return df
 
 
+def verify_columns_in_df(df: pd.DataFrame, columns: list[str]):
+    if not all(column in df.columns for column in columns):
+        raise ValueError(f"Columns {columns} not found in the input DataFrame.")
+
+
 def runPredigNetCleave(
     predigNetcleave_path: str,
     mode: int,
@@ -116,22 +121,20 @@ def runPredigNetCleave(
     net_cleave_input = ""
     if df_csv is not None:
 
-        # Check if 'peptide' and 'allele' columns exist
-        if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
-            raise ValueError(
-                "The input CSV file must contain 'peptide' or 'epitope' column."
+        if mode == 3:
+            verify_columns_in_df(
+                df_csv, ["epitope", "HLA_allele", "protein_seq", "protein_name"]
             )
+            df_csv = df_csv[["epitope", "protein_seq", "protein_name"]]
+        elif mode == 2:
+            verify_columns_in_df(df_csv, ["epitope", "HLA_allele", "uniprot_id"])
+            df_csv = df_csv[["epitope", "uniprot_id"]]
+        else:
+            raise ValueError(f"Unsupported mode '{mode}' with CSV input.")
 
-        if "epitope" in df_csv.columns:
-            df_csv = df_csv.rename(columns={"epitope": "peptide"})
-
-        if "uniprot_id" not in df_csv.columns:
-            raise ValueError("The input CSV file must contain 'uniprot_id' column.")
-
-        df_csv = df_csv[["peptide", "uniprot_id"]]
-        df_csv = df_csv.rename(columns={"peptide": "epitope"})
         net_cleave_input = ".input_NetCleave.csv"
         df_csv.to_csv(net_cleave_input, index=False)
+
     elif fasta is not None:
         net_cleave_input = fasta
 
@@ -165,8 +168,12 @@ def runPredigNetCleave(
 
     if mode == 1:
         output = "input_NetCleave.csv"
-    else:
+    elif mode == 2:
         output = "output_NetCleave.csv"
+    elif mode == 3:
+        output = "_NetCleave.csv"
+    else:
+        raise ValueError(f"Unsupported mode '{mode}'.")
 
     output = os.path.join("output", output)
     df = pd.read_csv(output)
