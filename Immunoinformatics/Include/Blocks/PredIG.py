@@ -249,8 +249,10 @@ def runPredIG(block: PluginBlock):
     peptide_len = input_setup.get("peptide_len", None)
     if peptide_len is not None and isinstance(peptide_len, str):
         raise ValueError("The peptide length must be a list of integers")
-
-    peptide_len = [int(p) for p in peptide_len]
+    elif peptide_len is not None and isinstance(peptide_len, list):
+        peptide_len = [int(p) for p in peptide_len]
+    else:
+        peptide_len = None
 
     modelXG_name = input_setup.get("modelXG", "PredIG-NeoA")
     if modelXG_name == "PredIG-NonCan":

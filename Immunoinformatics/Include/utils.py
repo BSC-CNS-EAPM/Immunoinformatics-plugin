@@ -120,7 +120,6 @@ def runPredigNetCleave(
 
     net_cleave_input = ""
     if df_csv is not None:
-
         if mode == 3:
             verify_columns_in_df(
                 df_csv, ["epitope", "HLA_allele", "protein_seq", "protein_name"]
@@ -182,7 +181,6 @@ def runPredigNetCleave(
     df.to_csv(output, index=True)
 
     shutil.rmtree("output")
-
     return df
 
 
@@ -254,7 +252,7 @@ def run_Predig_tapmap(
     df_csv: pd.DataFrame,
     tapmap_path: str,
     mat: str,
-    peptide_len: list[int],
+    peptide_len: typing.Optional[list[int]],
     alpha: typing.Union[float, None],
     precursor_len: typing.Union[int, None],
 ) -> pd.DataFrame:

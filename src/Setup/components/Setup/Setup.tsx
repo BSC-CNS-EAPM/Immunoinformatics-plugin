@@ -14,7 +14,6 @@ const DEFAULT_SETUP: PredIGVariables = {
   seed: Math.floor(Math.random() * 10000),
   modelXG: PREDIG_MODELS[0],
   HLA_alleles: "",
-  peptide_len: ["8"],
   mat: "",
   alpha: 0.5,
   precursor_len: 9,

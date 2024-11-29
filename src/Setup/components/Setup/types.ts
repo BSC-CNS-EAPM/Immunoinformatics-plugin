@@ -16,7 +16,7 @@ export type PredIGVariables = {
   seed: number;
   modelXG: string;
   HLA_alleles: string;
-  peptide_len: string[];
+  peptide_len?: string[];
   mat: string;
   alpha: number;
   precursor_len: number;
