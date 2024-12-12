@@ -200,7 +200,7 @@ def runPredIG(block: PluginBlock):
         import re
 
         wrong_alleles = []
-        for allele in alleles.split("\n"):
+        for allele in [a.strip() for a in alleles.split("\n") if a.strip() != ""]:
             match = re.match(r"^HLA-[ABC]\*[0-9]{1,3}:[0-9]{1,3}$", allele)
             if not match:
                 wrong_alleles.append(allele)
@@ -213,7 +213,7 @@ def runPredIG(block: PluginBlock):
                 )
             )
         alleles = "\n".join(
-            [allele for allele in alleles.split("\n") if allele.strip() != ""]
+            [allele.strip() for allele in alleles.split("\n") if allele.strip() != ""]
         )
 
         input_file = "input.fasta"
@@ -246,13 +246,14 @@ def runPredIG(block: PluginBlock):
     )
 
     # HLA_allele = block.variables.get(hlaVar.id, "HLA-A02:01")
-    peptide_len = input_setup.get("peptide_len", None)
-    if peptide_len is not None and isinstance(peptide_len, str):
-        raise ValueError("The peptide length must be a list of integers")
-    elif peptide_len is not None and isinstance(peptide_len, list):
-        peptide_len = [int(p) for p in peptide_len]
-    else:
-        peptide_len = None
+    # peptide_len = input_setup.get("peptide_len", None)
+    # if peptide_len is not None and isinstance(peptide_len, str):
+    #     raise ValueError("The peptide length must be a list of integers")
+    # elif peptide_len is not None and isinstance(peptide_len, list):
+    #     peptide_len = [int(p) for p in peptide_len]
+    # else:
+    #     peptide_len = None
+    peptide_len = None
 
     modelXG_name = input_setup.get("modelXG", "PredIG-NeoA")
     if modelXG_name == "PredIG-NonCan":
