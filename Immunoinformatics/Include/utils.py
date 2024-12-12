@@ -1,7 +1,7 @@
 import os
 import shutil
 import subprocess
-
+import typing
 import pandas as pd
 
 
@@ -103,37 +103,57 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
     return df
 
 
-def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
+def verify_columns_in_df(df: pd.DataFrame, columns: list[str]):
+    if not all(column in df.columns for column in columns):
+        raise ValueError(f"Columns {columns} not found in the input DataFrame.")
 
-    # Check if 'peptide' and 'allele' columns exist
-    if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
-        raise ValueError(
-            "The input CSV file must contain 'peptide' or 'epitope' column."
-        )
 
-    if "epitope" in df_csv.columns:
-        df_csv = df_csv.rename(columns={"epitope": "peptide"})
+def runPredigNetCleave(
+    predigNetcleave_path: str,
+    mode: int,
+    df_csv: typing.Optional[pd.DataFrame] = None,
+    fasta: typing.Optional[str] = None,
+):
 
-    if "uniprot_id" not in df_csv.columns:
-        raise ValueError("The input CSV file must contain 'uniprot_id' column.")
+    if df_csv is None and fasta is None:
+        raise ValueError("Either df_csv or fasta must be provided.")
 
-    df_csv = df_csv[["peptide", "uniprot_id"]]
-    df_csv = df_csv.rename(columns={"peptide": "epitope"})
-    df_csv.to_csv(".input_NetCleave.csv", index=False)
+    net_cleave_input = ""
+    if df_csv is not None:
+        if mode == 3:
+            verify_columns_in_df(
+                df_csv, ["epitope", "HLA_allele", "protein_seq", "protein_name"]
+            )
+            df_csv = df_csv[["epitope", "protein_seq", "protein_name"]]
+        elif mode == 2:
+            verify_columns_in_df(df_csv, ["epitope", "HLA_allele", "uniprot_id"])
+            df_csv = df_csv[["epitope", "uniprot_id"]]
+        else:
+            raise ValueError(f"Unsupported mode '{mode}' with CSV input.")
+
+        net_cleave_input = ".input_NetCleave.csv"
+        df_csv.to_csv(net_cleave_input, index=False)
+
+    elif fasta is not None:
+        net_cleave_input = fasta
 
     # Run the NetCleave
     # python_path_env = "/home/lavane/micromamba/envs/horus/bin/python"
     python_path_env = "/home/perry/miniconda3/envs/horus/bin/python"
 
+    # --pred_input
+    # 1: fasta
+    # 2: uniprot
+    # 3: recombinant protein seq
     try:
         proc = subprocess.Popen(
             [
                 python_path_env,
                 predigNetcleave_path,
                 "--predict",
-                ".input_NetCleave.csv",
+                net_cleave_input,
                 "--pred_input",
-                str(2),
+                str(mode),
             ],
             # env=env,
             stdout=subprocess.PIPE,
@@ -145,20 +165,27 @@ def runPredigNetCleave(df_csv: pd.DataFrame, predigNetcleave_path: str):
     except Exception as e:
         raise Exception(f"An error occurred while running the NetCleave: {e}")
 
-    output = "output_NetCleave.csv"
-    df = pd.read_csv("output/_NetCleave.csv")
+    if mode == 1:
+        output = "input_NetCleave.csv"
+    elif mode == 2:
+        output = "output_NetCleave.csv"
+    elif mode == 3:
+        output = "_NetCleave.csv"
+    else:
+        raise ValueError(f"Unsupported mode '{mode}'.")
+
+    output = os.path.join("output", output)
+    df = pd.read_csv(output)
     df = df[["epitope", "prediction"]]
     df = df.rename(columns={"prediction": "netcleave"})
     df.to_csv(output, index=True)
 
-    os.remove(".input_NetCleave.csv")
     shutil.rmtree("output")
-
     return df
 
 
 def runPredigNOAH(
-    df_csv: pd.DataFrame, predigNOAH_path: str, model: str
+    df_csv: pd.DataFrame, predigNOAH_path: str, model: str, python_exec: str = "python"
 ) -> pd.DataFrame:
 
     # Check if 'peptide' and 'allele' columns exist
@@ -190,7 +217,7 @@ def runPredigNOAH(
     try:
         with subprocess.Popen(
             [
-                "python",
+                python_exec,
                 predigNOAH_path,
                 "-i",
                 ".input_noah.csv",
@@ -225,9 +252,9 @@ def run_Predig_tapmap(
     df_csv: pd.DataFrame,
     tapmap_path: str,
     mat: str,
-    peptide_len: list[int],
-    alpha: float,
-    precursor_len: int,
+    peptide_len: typing.Optional[list[int]],
+    alpha: typing.Union[float, None],
+    precursor_len: typing.Union[int, None],
 ) -> pd.DataFrame:
 
     # Check if 'peptide' and 'allele' columns exist

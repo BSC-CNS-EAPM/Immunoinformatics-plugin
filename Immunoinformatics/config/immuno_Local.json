@@ -2,7 +2,34 @@
     "noah_path": "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/noah/main_NOAH.py",
     "cleave_path": "/home/perry/data/Programs/Immuno/NetCleave/NetCleave.py",
     "PCH_path": "/home/perry/data/Programs/Immuno/PCH/predig_pch_calc.R",
-    "MHC_path": "mhcflurry-predict",
+    "MHC_path": "/home/perry/miniconda3/envs/horus/bin/mhcflurry-predict",
     "tapmap_path": "/home/perry/data/Programs/Immuno/netCTLpan-1.1/Linux_x86_64/bin/tapmat_pred_fsa",
-    "spwindep_path": "/home/perry/data/Programs/Immuno/Predig/predig_spwindep_calc.R"
+    "spwindep_path": "/home/perry/data/Programs/Immuno/Predig/predig_spwindep_calc.R",
+    "python_exec": "/home/perry/miniconda3/envs/horus/bin/python",
+    "external_software_to_remove": [
+        "TAP",
+        "mhcflurry_affinity",
+        "mhcflurry_affinity_percentile",
+        "mhcflurry_processing_score",
+        "mhcflurry_presentation_score",
+        "epitope_noah",
+        "epitope_tapmap",
+        "epitope_y",
+        "hla_allele_noah",
+        "mhcflurry_best_allele",
+        "mhcflurry_presentation_percentile"
+    ],
+    "columns_to_delete": [
+        "TAP",
+        "mhcflurry_affinity",
+        "mhcflurry_affinity_percentile",
+        "mhcflurry_processing_score",
+        "mhcflurry_presentation_score",
+        "epitope_noah",
+        "epitope_tapmap",
+        "epitope_y",
+        "hla_allele_noah",
+        "mhcflurry_best_allele",
+        "mhcflurry_presentation_percentile"
+    ]
 }
