@@ -3,7 +3,7 @@ Module containing the PredIG block for the Immunoinformatics plugin
 """
 
 import pandas as pd
-
+import json
 import random
 
 from typing import Union, cast
@@ -324,8 +324,8 @@ def runPredIG(block: PluginBlock):
                     "The input CSV file must contain the same number of columns in each row."
                 )
 
-        if df.shape[0] > 500:
-            raise ValueError("The input CSV file must contain less than 500 rows.")
+        if df.shape[0] > 5000:
+            raise ValueError("The input CSV file must contain less than 5000 rows.")
 
     print("Running NetCleave")
     # Run the NetCleave / can be placed before to generate csv when case of Fasta
@@ -405,23 +405,28 @@ def runPredIG(block: PluginBlock):
     # df_joined = df_joined.merge(output_noah, on="epitope", how="inner")
 
     df_joined = output_pch.merge(
-        output_flurry, left_index=True, right_index=True, how="inner"
+        output_flurry, left_index=True, right_index=True, how="left"
     )
-    df_joined = df_joined.merge(
-        output_netcleave, left_index=True, right_index=True, how="inner"
-    )
+
+    if simulation == 1:
+        df_joined = df_joined.merge(df, left_index=True, right_index=True, how="left")
+    else:
+        df_joined = df_joined.merge(
+            output_netcleave, left_index=True, right_index=True, how="left"
+        )
+
     df_joined = df_joined.merge(
         output_tapmap,
         left_index=True,
         right_index=True,
-        how="inner",
+        how="left",
         suffixes=("", "_tapmap"),
     )
 
     df_joined["id"] = df_joined["hla_allele"] + "_" + df_joined["epitope"]
     output_noah["id"] = output_noah["hla_allele"] + "_" + output_noah["epitope"]
     df_joined = df_joined.merge(
-        output_noah, on="id", how="inner", suffixes=("", "_noah")
+        output_noah, on="id", how="left", suffixes=("", "_noah")
     )
 
     print("Launching the XGBoost model")
@@ -429,7 +434,6 @@ def runPredIG(block: PluginBlock):
         df_joined = df_joined.drop(columns=["hla_allele_y"])
     if "hla_allele_x" in df_joined.columns:
         df_joined = df_joined.rename(columns={"hla_allele_x": "hla_allele"})
-    # df_joined.to_csv("outputs_parsed.csv", index=False)
 
     df_xgboost = df_joined[
         [

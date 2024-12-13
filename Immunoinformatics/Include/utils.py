@@ -168,7 +168,7 @@ def runPredigNetCleave(
     if mode == 1:
         output = "input_NetCleave.csv"
     elif mode == 2:
-        output = "output_NetCleave.csv"
+        output = "_NetCleave.csv"
     elif mode == 3:
         output = "_NetCleave.csv"
     else:

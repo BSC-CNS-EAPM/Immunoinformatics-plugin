@@ -2,7 +2,13 @@
 Module containing the NetCleave block for the Immunoinformatics plugin 
 """
 
-from HorusAPI import Extensions, PluginBlock, PluginVariable, VariableGroup, VariableTypes
+from HorusAPI import (
+    Extensions,
+    PluginBlock,
+    PluginVariable,
+    VariableGroup,
+    VariableTypes,
+)
 
 # ==========================#
 # Variable inputs
@@ -71,7 +77,9 @@ def runNetCleave(block: PluginBlock):
 
         # Check if 'peptide' and 'epitope' columns exist
         if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
-            raise ValueError("The input CSV file must contain 'peptide' or 'epitope' column.")
+            raise ValueError(
+                "The input CSV file must contain 'peptide' or 'epitope' column."
+            )
         # Rename 'peptide' column to 'epitope'
         if "peptide" in df_csv.columns:
             df_csv = df_csv.rename(columns={"peptide": "epitope"})
