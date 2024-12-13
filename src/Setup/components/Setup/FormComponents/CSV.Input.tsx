@@ -1,7 +1,12 @@
-import { Button, Stack, Textarea } from "@mantine/core";
+import { Button, Group, Stack, Textarea } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { Text } from "@mantine/core";
-import { IconFile, IconFileSearch, IconFileUpload } from "@tabler/icons-react";
+import {
+  IconClick,
+  IconFile,
+  IconFileSearch,
+  IconFileUpload,
+} from "@tabler/icons-react";
 import { Dropzone } from "@mantine/dropzone";
 import { VariableSetter } from "../types";
 import AnimateHeight from "react-animate-height";
@@ -122,11 +127,13 @@ function DragAndDrop({ file, value, setValue }: VariableSetter<string>) {
             {hoveringFile ? (
               <IconFileUpload {...fileProps} color="green" />
             ) : (
-              <IconFile {...fileProps} />
+              <Group>
+                <IconFile {...fileProps} />
+                <IconClick {...fileProps} />
+              </Group>
             )}
-
             <Text size="xl" inline ta="center">
-              Drag and drop a {file}
+              Drag and drop a {file} or click to select
             </Text>
           </Stack>
         </Dropzone>
