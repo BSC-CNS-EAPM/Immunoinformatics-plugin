@@ -3,7 +3,11 @@ import { VariableSetter } from "../types";
 import { CSVInput } from "./CSV.Input";
 import { useState } from "react";
 
-export function Hallele({ value, setValue }: VariableSetter<string>) {
+export function Hallele({
+  value,
+  setValue,
+  sampleData,
+}: VariableSetter<string>) {
   const halleleValidator = (value: string | undefined) => {
     if (!value) {
       return false;
@@ -32,6 +36,7 @@ export function Hallele({ value, setValue }: VariableSetter<string>) {
   return (
     <Input.Wrapper>
       <CSVInput
+        sampleData={sampleData}
         label="HLA Alleles"
         file="TXT File"
         value={value}

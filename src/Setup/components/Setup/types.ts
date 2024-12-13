@@ -29,6 +29,7 @@ export type VariableSetter<T> = {
   value: T;
   file?: string;
   setValue: (newValue: T) => void;
+  sampleData?: T;
 };
 
 export type SimulationModeProps = {

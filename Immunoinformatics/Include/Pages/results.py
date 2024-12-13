@@ -40,15 +40,23 @@ def return_data():
         or not os.path.isfile(full_csv)
         or not csv.endswith(".csv")
     ):
-        return Response("CSV does not exist", status=400)
+        return Response("Results do not exist", status=400)
 
     import pandas as pd
+    import numpy as np
 
-    df = pd.read_csv(full_csv)
+    try:
+        df = pd.read_csv(full_csv)
 
-    data_dict = df.to_dict(orient="records")
+        # Replace all NAN values with None
+        df = df.replace({np.nan: None})
 
-    return jsonify({"ok": True, "results": data_dict, "columns": list(df.columns)})
+        data_dict = df.to_dict(orient="records")
+
+        return jsonify({"ok": True, "results": data_dict, "columns": list(df.columns)})
+
+    except Exception as e:
+        return Response(str(e), status=400)
 
 
 results_data_endpoint = PluginEndpoint(

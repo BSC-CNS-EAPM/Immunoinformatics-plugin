@@ -1,7 +1,7 @@
-import { Stack, Textarea } from "@mantine/core";
+import { Button, Stack, Textarea } from "@mantine/core";
 import { useEffect, useMemo, useState } from "react";
 import { Text } from "@mantine/core";
-import { IconFile, IconFileUpload } from "@tabler/icons-react";
+import { IconFile, IconFileSearch, IconFileUpload } from "@tabler/icons-react";
 import { Dropzone } from "@mantine/dropzone";
 import { VariableSetter } from "../types";
 import AnimateHeight from "react-animate-height";
@@ -21,8 +21,22 @@ function TextInput({
   value,
   setValue,
   validator,
+  sampleData,
 }: VariableSetter<string>) {
   const [hasError, setHasError] = useState<string | boolean>(false);
+
+  const getSampleData = () => {
+    let url = window.location.href + sampleData;
+    if (import.meta.env.DEV) {
+      url = `/${sampleData}`;
+    }
+
+    fetch(url).then((response) => {
+      response.text().then((text) => {
+        setValue(text);
+      });
+    });
+  };
 
   useEffect(() => {
     if (validator) {
@@ -31,27 +45,41 @@ function TextInput({
   }, [value]);
 
   return (
-    <Textarea
-      withAsterisk
-      onDrop={(event) => {
-        event.preventDefault();
+    <div style={{ position: "relative" }}>
+      {sampleData && (
+        <Button
+          pos="absolute"
+          top={0}
+          right={0}
+          leftSection={<IconFileSearch />}
+          onClick={getSampleData}
+        >
+          Load sample data
+        </Button>
+      )}
+      <Textarea
+        withAsterisk
+        onDrop={(event) => {
+          event.preventDefault();
 
-        const file = event.dataTransfer.files[0];
+          const file = event.dataTransfer.files[0];
 
-        if (file) {
-          readFile(file).then((text) => setValue(text));
-        }
-      }}
-      autosize
-      resize="vertical"
-      minRows={10}
-      maxRows={10}
-      label={label}
-      description={description}
-      value={value}
-      error={hasError}
-      onChange={(event) => setValue(event.target.value as string)}
-    />
+          if (file) {
+            readFile(file).then((text) => setValue(text));
+          }
+        }}
+        autosize
+        resize="vertical"
+        minRows={10}
+        maxRows={10}
+        label={label}
+        rightSection
+        description={description}
+        value={value}
+        error={hasError}
+        onChange={(event) => setValue(event.target.value as string)}
+      />
+    </div>
   );
 }
 

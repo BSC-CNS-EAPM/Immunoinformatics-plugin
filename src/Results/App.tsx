@@ -84,7 +84,8 @@ function getURL(options?: { download?: boolean; fullSimulation?: boolean }) {
     "results_api" + (options?.download ? "/download_results" : "/results");
   if (import.meta.hot) {
     urlPath = window.location.origin + "/" + path;
-    csvPath = "/home/perry/data/cdominguez/Flows/PredIG/predig_output.csv";
+    csvPath =
+      "/home/perry/data/cdominguez/Immunoinformatics-plugin/PredIG_output.csv";
   } else {
     urlPath = window.location.href + path;
     csvPath = parent.extensionData?.["csv"] as string;
@@ -109,23 +110,26 @@ function getURL(options?: { download?: boolean; fullSimulation?: boolean }) {
 }
 
 async function getDataFromHorus() {
-  return fetch(getURL())
-    .then((response) => {
-      return response.json();
-    })
-    .then((data) => {
-      if (!data.ok) {
-        throw new Error(data.msg);
-      }
+  try {
+    const response = await fetch(getURL());
 
-      return data as {
-        results: PredIGResult[];
-        columns: string[];
-      };
-    })
-    .catch((error) => {
-      throw error;
-    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || response.statusText);
+    }
+
+    const data = await response.json();
+
+    if (!data.ok) {
+      throw new Error(data.msg || "Unknown error");
+    }
+
+    return data as {
+      results: PredIGResult[];
+      columns: string[];
+    };
+  } catch (error) {    throw error; // Re-throw to be caught by react-query
+  }
 }
 
 function Welcome() {
@@ -193,6 +197,7 @@ function PredIGResults() {
 
   const colDef: ColDef[] = data.columns.map((col) => {
     return {
+      filter: true,
       field: col,
       header: prettifyName(col),
       headerName: prettifyName(col),

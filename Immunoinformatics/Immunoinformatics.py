@@ -26,10 +26,6 @@ def create_plugin():
 
     immunoPlugin.addBlock(netCleaveBlock)
 
-    from Blocks.Documentation import documentationBlock  # type: ignore
-
-    immunoPlugin.addBlock(documentationBlock)
-
     from Blocks.PredIGmodels import predig_modelsBlock  # type: ignore
 
     immunoPlugin.addBlock(predig_modelsBlock)
@@ -68,9 +64,6 @@ def create_plugin():
     immunoPlugin.addConfig(tapmatExecutableConfig)
 
     # ========== Pages ========== #
-    from Pages.documentation import documentationViewPage
-
-    immunoPlugin.addPage(documentationViewPage)
 
     from Pages.setup_predig import setup_predig_page
 

@@ -19,6 +19,13 @@ const DEFAULT_SETUP: PredIGVariables = {
   precursor_len: 9,
 };
 
+const SAMPLE_DATA = {
+  [SimulationMode.UNIPROT]: "predig_input1_uniprot_example.csv",
+  [SimulationMode.RECOMBINANT]: "predig_input2_recombinant_example.csv",
+  [SimulationMode.FASTA]: "predig_input3_b2m_fasta_example.fasta",
+  alleles: "predig_input3_alleles_example.csv",
+};
+
 const getEnumKeyByValue = (value: string, enumObj: any) => {
   return Object.keys(enumObj).find((key) => enumObj[key] === value);
 };
@@ -111,12 +118,15 @@ function StepViewer({
       return (
         <SelectSimulation
           predIGVariables={predIGVariables}
-          setPredIGVariables={setPredIGVariables}
+          setPredIGVariables={(v) => {
+            setPredIGVariables({ ...v, input_text: "" });
+          }}
         />
       );
     case 1:
       return (
         <CSVInput
+          sampleData={SAMPLE_DATA[predIGVariables.simulation]}
           file={
             predIGVariables.simulation === SimulationMode.FASTA
               ? "FASTA file"
@@ -129,7 +139,7 @@ function StepViewer({
           }
           description={
             predIGVariables.simulation === SimulationMode.FASTA
-              ? undefined
+              ? "Upload a FASTA file"
               : `The input CSV must have the following columns: ${predIGVariables.simulation === SimulationMode.RECOMBINANT ? RECOMBINANT_COLUMNS : UNIPROT_COLUMNS}`
           }
           validator={(value) => {
@@ -190,6 +200,7 @@ function StepViewer({
           />
           {predIGVariables.simulation === SimulationMode.FASTA && (
             <Hallele
+              sampleData={SAMPLE_DATA["alleles"]}
               label="Select HLA alleles"
               value={predIGVariables.HLA_alleles}
               setValue={(HLA_alleles) =>
