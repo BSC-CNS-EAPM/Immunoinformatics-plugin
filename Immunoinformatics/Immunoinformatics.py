@@ -13,6 +13,10 @@ def create_plugin():
 
     immunoPlugin = Plugin()
 
+    from Pages.setup_predig import setup_predig_page
+
+    immunoPlugin.addPage(setup_predig_page)
+
     # ========== Blocks ========== #
     from Blocks.PredIG import predigBlock  # type: ignore
 
@@ -64,10 +68,6 @@ def create_plugin():
     immunoPlugin.addConfig(tapmatExecutableConfig)
 
     # ========== Pages ========== #
-
-    from Pages.setup_predig import setup_predig_page
-
-    immunoPlugin.addPage(setup_predig_page)
 
     from Pages.results import results_page
 
