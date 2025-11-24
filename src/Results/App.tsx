@@ -88,7 +88,7 @@ function getURL(options?: { download?: boolean; fullSimulation?: boolean }) {
       "/home/perry/data/cdominguez/Immunoinformatics-plugin/PredIG_output.csv";
   } else {
     urlPath = window.location.href + path;
-    csvPath = parent.extensionData?.["csv"] as string;
+    csvPath = window.extensionData?.["csv"] as string;
   }
 
   if (!csvPath) {
