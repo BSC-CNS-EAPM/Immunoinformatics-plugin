@@ -22,21 +22,21 @@ def create_plugin():
 
     immunoPlugin.addBlock(predigBlock)
 
-    from Blocks.NOAH import noahBlock  # type: ignore
+    # from Blocks.NOAH import noahBlock  # type: ignore
 
-    immunoPlugin.addBlock(noahBlock)
+    # immunoPlugin.addBlock(noahBlock)
 
-    from Blocks.NetCleave import netCleaveBlock  # type: ignore
+    # from Blocks.NetCleave import netCleaveBlock  # type: ignore
 
-    immunoPlugin.addBlock(netCleaveBlock)
+    # immunoPlugin.addBlock(netCleaveBlock)
 
-    from Blocks.PredIGmodels import predig_modelsBlock  # type: ignore
+    # from Blocks.PredIGmodels import predig_modelsBlock  # type: ignore
 
-    immunoPlugin.addBlock(predig_modelsBlock)
+    # immunoPlugin.addBlock(predig_modelsBlock)
 
-    from Blocks.Tap import tapBlock  # type: ignore
+    # from Blocks.Tap import tapBlock  # type: ignore
 
-    immunoPlugin.addBlock(tapBlock)
+    # immunoPlugin.addBlock(tapBlock)
 
     # ========== Configs ========== #
     from Configs.columns_to_delete import columns_to_delete_config

@@ -90,7 +90,12 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
         )
         stdout, stderr = proc.communicate()
         print("Output:", stdout.decode())
-        print("Error:", stderr.decode())
+        stderr = stderr.decode()
+        print(stderr)
+
+        if proc.returncode != 0:
+            raise RuntimeError(stderr)
+
     except Exception as e:
         raise Exception(f"An error occurred while running the PredigMHCflurry: {e}")
 
@@ -113,6 +118,7 @@ def runPredigNetCleave(
     mode: int,
     df_csv: typing.Optional[pd.DataFrame] = None,
     fasta: typing.Optional[str] = None,
+    python_exec="python",
 ):
 
     if df_csv is None and fasta is None:
@@ -139,22 +145,22 @@ def runPredigNetCleave(
 
     # Run the NetCleave
     # python_path_env = "/home/lavane/micromamba/envs/horus/bin/python"
-    python_path_env = "/home/perry/miniconda3/envs/horus/bin/python"
-
     # --pred_input
     # 1: fasta
     # 2: uniprot
     # 3: recombinant protein seq
+    python_exec = python_exec.strip().split(" ")
+    cmd = [
+        *python_exec,
+        predigNetcleave_path,
+        "--predict",
+        net_cleave_input,
+        "--pred_input",
+        str(mode),
+    ]
     try:
         proc = subprocess.Popen(
-            [
-                python_path_env,
-                predigNetcleave_path,
-                "--predict",
-                net_cleave_input,
-                "--pred_input",
-                str(mode),
-            ],
+            cmd,
             # env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -176,6 +182,21 @@ def runPredigNetCleave(
 
     output = os.path.join("output", output)
     df = pd.read_csv(output)
+
+    print("============== NetCleave report ==============")
+    hasErrors = False
+    # Loop all the data, if the column "prediction" is NaN, print as a log
+    for index, row in df.iterrows():
+        if pd.isnull(row["prediction"]):
+            hasErrors = True
+            print(
+                f"NetCleave prediction failed for epitope '{row['epitope']}', uniprot ID '{row['uniprot_id']}' in row '{index}': {row['warnings']}"
+            )
+
+    if not hasErrors:
+        print("NetCleave prediction succeeded for all entries.")
+    print("============== NetCleave report ==============")
+
     df = df[["epitope", "prediction"]]
     df = df.rename(columns={"prediction": "netcleave"})
     df.to_csv(output, index=True)
@@ -214,19 +235,19 @@ def runPredigNOAH(
     df_csv.to_csv(".input_noah.csv", index=False)
 
     # Run the NOAH
+    python_exec_list = python_exec.strip().split(" ")
+    cmd = [
+        *python_exec_list,
+        predigNOAH_path,
+        "-i",
+        ".input_noah.csv",
+        "-m",
+        model,
+        "-o",
+        ".output_noah.csv",
+    ]
     try:
-        with subprocess.Popen(
-            [
-                python_exec,
-                predigNOAH_path,
-                "-i",
-                ".input_noah.csv",
-                "-m",
-                model,
-                "-o",
-                ".output_noah.csv",
-            ]
-        ) as proc:
+        with subprocess.Popen(cmd) as proc:
             proc.wait()
     except Exception as e:
         raise Exception(f"An error occurred while running the NOAH: {e}")

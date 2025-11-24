@@ -224,13 +224,13 @@ def runPredIG(block: PluginBlock):
         3: "RECOMBINANT",
     }
 
-    print("====================INPUTS======================")
-    print("Input file: ", input_file)
-    print("Input text: ", input_text)
-    if alleles:
-        print("HLA alleles: ", alleles)
+    # print("====================INPUTS======================")
+    # print("Input file: ", input_file)
+    # print("Input text: ", input_text)
+    # if alleles:
+    #     print("HLA alleles: ", alleles)
     print(f"Simulation type: {simulation_map[simulation]} ({simulation})")
-    print("==========================================")
+    # print("==========================================")
 
     with open(input_file, "w", encoding="utf-8") as file:
         # Clean the input CSV by removing unnedded quotes "" before writting
@@ -324,14 +324,19 @@ def runPredIG(block: PluginBlock):
                     "The input CSV file must contain the same number of columns in each row."
                 )
 
-        if df.shape[0] > 5000:
-            raise ValueError("The input CSV file must contain less than 5000 rows.")
+        # if df.shape[0] > 5000:
+        #     raise ValueError("The input CSV file must contain less than 5000 rows.")
 
+    python_exec = block.config.get("python_exec", "python")
     print("Running NetCleave")
     # Run the NetCleave / can be placed before to generate csv when case of Fasta
     # When fasta set Hallele in input
     output_netcleave = runPredigNetCleave(
-        df_csv=df, predigNetcleave_path=netCleavePath, mode=simulation, fasta=fasta
+        df_csv=df,
+        predigNetcleave_path=netCleavePath,
+        mode=simulation,
+        fasta=fasta,
+        python_exec=python_exec,
     )
 
     # If we are runnign with a fasta, concatenate the results of netcleave with HLA alleles
@@ -380,10 +385,9 @@ def runPredIG(block: PluginBlock):
 
     print("Running NOAH")
 
-    python_exect = block.config.get("python_exec", "python")
     # Run the NOAH, ["HLA", "epitope", "NOAH_score"] id="HLA", "epitope"
     output_noah = runPredigNOAH(
-        df_csv=df, predigNOAH_path=noahPath, model=model, python_exec=python_exect
+        df_csv=df, predigNOAH_path=noahPath, model=model, python_exec=python_exec
     )
 
     print("Running tapmat_pred_fsa")
