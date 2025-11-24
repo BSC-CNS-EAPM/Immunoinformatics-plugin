@@ -1,6 +1,10 @@
 declare global {
   interface Window {
     horus: any;
+    horusVariable: {
+      getVariable: () => any;
+      setVariable: (value: any) => void;
+    };
   }
 }
 

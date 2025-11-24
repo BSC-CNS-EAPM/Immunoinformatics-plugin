@@ -42,8 +42,8 @@ export function Setup() {
 
   useEffect(() => {
     // For the first open, load the inputs from the variable
-    if (parent?.horus?.getVariable) {
-      const variable = parent.horus?.getVariable();
+    if (window?.horusVariable?.getVariable) {
+      const variable = window.horusVariable?.getVariable();
 
       if (variable?.value) {
         setPredIGVariables(variable.value);
@@ -52,8 +52,8 @@ export function Setup() {
   }, []);
 
   useEffect(() => {
-    if (parent?.horus?.setVariable) {
-      parent.horus?.setVariable(predIGVariables);
+    if (window?.horusVariable?.setVariable) {
+      window.horusVariable?.setVariable(predIGVariables);
     }
   }, [predIGVariables]);
 
