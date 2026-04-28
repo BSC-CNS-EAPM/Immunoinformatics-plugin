@@ -2,8 +2,6 @@
 Module containing the PredIG block for the Immunoinformatics plugin 
 """
 
-import pandas as pd
-import json
 import random
 
 from typing import Union, cast
@@ -242,7 +240,10 @@ def runPredIG(block: PluginBlock):
     # TODO have changed the paths for the lavane, need to be chenged back for perry
     model = input_setup.get(
         "model",
-        "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
+        block.config.get(
+            "noah_model_path",
+            "/home/perry/data/Programs/Immuno/Neoantigens-NOAH/models/model.pkl",
+        ),
     )
 
     # HLA_allele = block.variables.get(hlaVar.id, "HLA-A02:01")
@@ -257,20 +258,25 @@ def runPredIG(block: PluginBlock):
 
     modelXG_name = input_setup.get("modelXG", "PredIG-NeoA")
     if modelXG_name == "PredIG-NonCan":
-        modelXG = "/home/perry/data/Programs/Immuno/Predig/spw_indep2_rescale_predig_model.model"
+        modelXG = block.config.get(
+            "predig_noncan_model_path",
+            "/home/perry/data/Programs/Immuno/Predig/spw_indep2_rescale_predig_model.model",
+        )
     elif modelXG_name == "PredIG-Path":
-        modelXG = "/home/perry/data/Programs/Immuno/Predig/spw_indep1_rescale_predig_model.model"
+        modelXG = block.config.get(
+            "predig_path_model_path",
+            "/home/perry/data/Programs/Immuno/Predig/spw_indep1_rescale_predig_model.model",
+        )
     else:  # "PredIG-NeoA"
-        modelXG = (
-            "/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model"
+        modelXG = block.config.get(
+            "predig_neoa_model_path",
+            "/home/perry/data/Programs/Immuno/Predig/spw_xtreme_predig_model.model",
         )
 
-    mat = input_setup.get(
-        "mat", "/home/perry/data/Programs/Immuno/netCTLpan-1.1/data/tap.logodds.mat"
+    mat = input_setup.get("mat") or block.config.get(
+        "tapmap_mat_path",
+        "/home/perry/data/Programs/Immuno/netCTLpan-1.1/data/tap.logodds.mat",
     )
-
-    if mat is None or mat == "":
-        mat = "/home/perry/data/Programs/Immuno/netCTLpan-1.1/data/tap.logodds.mat"
 
     alpha = input_setup.get("alpha")
 
@@ -303,6 +309,8 @@ def runPredIG(block: PluginBlock):
     # Check if the input file is valid
     if not os.path.isfile(input_file):
         raise ValueError("The input file is not valid")
+
+    import pandas as pd
 
     df = None
     fasta = None
@@ -370,10 +378,12 @@ def runPredIG(block: PluginBlock):
 
     # Run the PCH ["epitope"]
     print("Running PCH")
+    rscript_path = block.config.get("rscript_path", "Rscript")
     output_pch = runPredigPCH(
         df_csv=df,
         seed=int(seed),
         predigPCH_path=pchPath,
+        rscript_path=rscript_path,
     )
 
     print("Running MHCflurry")
@@ -500,13 +510,13 @@ def runPredIG(block: PluginBlock):
     df_joined = df_joined.rename(columns=name_mapping)
 
     # Remove unwanted columns
-    columns_to_delete: list[str] = block.config.get("columns_to_delete", [])
+    columns_to_delete: list[str] = block.config.get("columns_to_delete")
 
-    columns_to_delete = [c.lower() for c in columns_to_delete]
-
-    for col in df_joined.columns:
-        if col.lower() in columns_to_delete:
-            df_joined = df_joined.drop(columns=col)
+    if columns_to_delete:
+        columns_to_delete = [c.lower() for c in columns_to_delete]
+        for col in df_joined.columns:
+            if col.lower() in columns_to_delete:
+                df_joined = df_joined.drop(columns=col)
 
     # Remove any *_output.csv file to prevent other programs messing the folder
     import glob
