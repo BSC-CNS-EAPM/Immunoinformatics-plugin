@@ -1,0 +1,26 @@
+# Example configuration for PredIG's "Input YAML" override.
+# Provide this file via the input_yaml block input instead of using the "Setup" button.
+
+# Simulation mode: 1 = FASTA, 2 = UNIPROT, 3 = RECOMBINANT
+simulation: 1
+
+# Raw contents of the input file (CSV/TSV for modes 2/3, FASTA for mode 1)
+input_text: |
+  >example_protein
+  MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQFEVVHSLAKWKR
+
+# Required when simulation is 1 (FASTA): newline-separated HLA-I alleles, IMGT 4-digit format
+HLA_alleles: |
+  HLA-A*02:01
+  HLA-A*24:02
+
+seed: 1234
+
+# PredIG XGBoost model name: PredIG-NeoA | PredIG-NonCan | PredIG-Path
+modelXG: PredIG-NeoA
+
+# Optional overrides (uncomment to use non-default values)
+# model: /path/to/model.pkl
+# mat: /path/to/tap.logodds.mat
+# alpha: 0.5
+# precursor_len: 4
