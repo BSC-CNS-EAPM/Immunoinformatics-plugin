@@ -81,7 +81,7 @@ function getURL(options?: { download?: boolean; fullSimulation?: boolean }) {
   let csvPath = "";
   let urlPath = "";
   const path =
-    "results_api" + (options?.download ? "/download_results" : "/results");
+    "results_api" + (options?.download ? "/download_results/" : "/results/");
   if (import.meta.hot) {
     urlPath = window.location.origin + "/" + path;
     csvPath =
@@ -89,6 +89,14 @@ function getURL(options?: { download?: boolean; fullSimulation?: boolean }) {
   } else {
     urlPath = window.location.href + path;
     csvPath = window.extensionData?.["csv"] as string;
+
+    // Ensure HTTPS is present if the parent uses https
+    if (
+      parent.window.location.protocol === "https:" &&
+      urlPath.startsWith("http:")
+    ) {
+      urlPath = urlPath.replace("http:", "https:");
+    }
   }
 
   if (!csvPath) {
@@ -106,12 +114,14 @@ function getURL(options?: { download?: boolean; fullSimulation?: boolean }) {
     url.searchParams.set("simulation", "true");
   }
 
+
   return url.toString();
 }
 
 async function getDataFromHorus() {
   try {
-    const response = await fetch(getURL());
+    const url = getURL();
+    const response = await fetch(url);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -128,7 +138,8 @@ async function getDataFromHorus() {
       results: PredIGResult[];
       columns: string[];
     };
-  } catch (error) {    throw error; // Re-throw to be caught by react-query
+  } catch (error) {
+    throw error; // Re-throw to be caught by react-query
   }
 }
 

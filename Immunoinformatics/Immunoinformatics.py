@@ -47,6 +47,14 @@ def create_plugin():
 
     immunoPlugin.addConfig(columns_to_delete_config)
 
+    from Configs.noah_model import noah_model
+
+    immunoPlugin.addConfig(noah_model)
+
+    from Configs.rscript import rscript_config
+
+    immunoPlugin.addConfig(rscript_config)
+
     from Configs.python_exec import python_exec_config
 
     immunoPlugin.addConfig(python_exec_config)
@@ -70,6 +78,14 @@ def create_plugin():
     from Configs.tapmapConfig import tapmatExecutableConfig
 
     immunoPlugin.addConfig(tapmatExecutableConfig)
+
+    from Configs.tapMatConfig import tapMatConfig
+
+    immunoPlugin.addConfig(tapMatConfig)
+
+    from Configs.predigModelsConfig import predigModelsConfig
+
+    immunoPlugin.addConfig(predigModelsConfig)
 
     # ========== Pages ========== #
 

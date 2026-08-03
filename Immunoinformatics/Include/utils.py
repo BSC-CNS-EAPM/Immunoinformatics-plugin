@@ -2,10 +2,12 @@ import os
 import shutil
 import subprocess
 import typing
-import pandas as pd
+
+if typing.TYPE_CHECKING:
+    import pandas as pd
 
 
-def runPredigPCH(df_csv: pd.DataFrame, seed: int, predigPCH_path: str):
+def runPredigPCH(df_csv: "pd.DataFrame", seed: int, predigPCH_path: str, rscript_path: str) -> "pd.DataFrame":
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
@@ -21,24 +23,33 @@ def runPredigPCH(df_csv: pd.DataFrame, seed: int, predigPCH_path: str):
 
     # Run the PCH
     try:
-        proc = subprocess.Popen(
-            [
-                "Rscript",
+        cmd = [
+                rscript_path,
                 predigPCH_path,
                 "--input",
                 ".input_pch.csv",
                 "--seed",
                 str(seed),
-            ],
+            ]
+        proc = subprocess.Popen(
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
         stdout, stderr = proc.communicate()
         print("Output:", stdout.decode())
         print("Error:", stderr.decode())
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"predigPCH failed (exit {proc.returncode})."
+            )
+    except RuntimeError:
+        raise
     except Exception as e:
         raise Exception(f"An error occurred while running the predigPCH: {e}")
 
+    # In Horus always import inside function scopes
+    import pandas as pd
     df = pd.read_csv(".input_pch_pch.csv")
     df = df.rename(columns={"peptide": "epitope"})
     df.to_csv("output_pch.csv", index=True)
@@ -49,7 +60,7 @@ def runPredigPCH(df_csv: pd.DataFrame, seed: int, predigPCH_path: str):
     return df
 
 
-def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
+def runPredigMHCflurry(df_csv: "pd.DataFrame", predigMHCflurry_path: str):
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
@@ -94,10 +105,16 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
         print(stderr)
 
         if proc.returncode != 0:
-            raise RuntimeError(stderr)
+            raise RuntimeError(
+                f"PredigMHCflurry failed (exit {proc.returncode})."
+            )
 
+    except RuntimeError:
+        raise
     except Exception as e:
         raise Exception(f"An error occurred while running the PredigMHCflurry: {e}")
+    # In Horus always import inside function scopes
+    import pandas as pd
 
     df = pd.read_csv(output)
     df = df.rename(columns={"allele": "hla_allele", "peptide": "epitope"})
@@ -108,7 +125,7 @@ def runPredigMHCflurry(df_csv: pd.DataFrame, predigMHCflurry_path: str):
     return df
 
 
-def verify_columns_in_df(df: pd.DataFrame, columns: list[str]):
+def verify_columns_in_df(df: "pd.DataFrame", columns: list[str]):
     if not all(column in df.columns for column in columns):
         raise ValueError(f"Columns {columns} not found in the input DataFrame.")
 
@@ -116,7 +133,7 @@ def verify_columns_in_df(df: pd.DataFrame, columns: list[str]):
 def runPredigNetCleave(
     predigNetcleave_path: str,
     mode: int,
-    df_csv: typing.Optional[pd.DataFrame] = None,
+    df_csv: typing.Optional["pd.DataFrame"] = None,
     fasta: typing.Optional[str] = None,
     python_exec="python",
 ):
@@ -168,6 +185,13 @@ def runPredigNetCleave(
         stdout, stderr = proc.communicate()
         print("Output:", stdout.decode())
         print("Error:", stderr.decode())
+
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"NetCleave failed (exit {proc.returncode})."
+            )
+    except RuntimeError:
+        raise
     except Exception as e:
         raise Exception(f"An error occurred while running the NetCleave: {e}")
 
@@ -181,6 +205,7 @@ def runPredigNetCleave(
         raise ValueError(f"Unsupported mode '{mode}'.")
 
     output = os.path.join("output", output)
+    import pandas as pd
     df = pd.read_csv(output)
 
     print("============== NetCleave report ==============")
@@ -206,8 +231,8 @@ def runPredigNetCleave(
 
 
 def runPredigNOAH(
-    df_csv: pd.DataFrame, predigNOAH_path: str, model: str, python_exec: str = "python"
-) -> pd.DataFrame:
+    df_csv: "pd.DataFrame", predigNOAH_path: str, model: str, python_exec: str = "python"
+) -> "pd.DataFrame":
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
@@ -247,13 +272,26 @@ def runPredigNOAH(
         ".output_noah.csv",
     ]
     try:
-        with subprocess.Popen(cmd) as proc:
-            proc.wait()
+        print(f"Running NOAH with command: {' '.join(cmd)}")
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+            stdout, stderr = proc.communicate()
+            print("NOAH finished with return code:", proc.returncode)
+            print("NOAH stdout:", stdout.decode())
+            print("NOAH stderr:", stderr.decode())
+
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"NOAH failed (exit {proc.returncode})."
+                )
+    except RuntimeError:
+        raise
     except Exception as e:
         raise Exception(f"An error occurred while running the NOAH: {e}")
     print("Parsing NOAH output")
 
     output = "output_noah_parsed.csv"
+    # In Horus always import inside function scopes
+    import pandas as pd
 
     df = pd.read_csv(
         ".output_noah.csv",
@@ -270,13 +308,13 @@ def runPredigNOAH(
 
 
 def run_Predig_tapmap(
-    df_csv: pd.DataFrame,
+    df_csv: "pd.DataFrame",
     tapmap_path: str,
     mat: str,
     peptide_len: typing.Optional[list[int]],
     alpha: typing.Union[float, None],
     precursor_len: typing.Union[int, None],
-) -> pd.DataFrame:
+) -> "pd.DataFrame":
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
@@ -330,6 +368,13 @@ def run_Predig_tapmap(
             stdout, stderr = proc.communicate()
             print("Output:", stdout.decode())
             print("Error:", stderr.decode())
+
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"tapmap failed for size={size} (exit {proc.returncode})."
+                )
+        except RuntimeError:
+            raise
         except Exception as e:
             raise Exception(
                 f"An error occurred while running the tapmap size={size}: {e}"
@@ -353,6 +398,9 @@ def run_Predig_tapmap(
     for size in dict_sizes:
         os.remove(f".input_tapmap_{size}.fasta")
         os.remove(f".output_tapmap_{size}.txt")
+
+    # In Horus always import inside function scopes
+    import pandas as pd
 
     df = pd.DataFrame({"epitope": epitope, "TAP": tap})
     df.to_csv("output_tapmap.csv", index=False)
