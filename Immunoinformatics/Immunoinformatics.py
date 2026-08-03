@@ -22,6 +22,10 @@ def create_plugin():
 
     immunoPlugin.addBlock(predigBlock)
 
+    from Blocks.PredIGYamlInput import predigYamlInputBlock  # type: ignore
+
+    immunoPlugin.addBlock(predigYamlInputBlock)
+
     # from Blocks.NOAH import noahBlock  # type: ignore
 
     # immunoPlugin.addBlock(noahBlock)
@@ -107,5 +111,6 @@ plugin = create_plugin()
     "biopython",
     "pytz",
     "pip mhcflurry",
-    "rpy2"
+    "rpy2",
+    "pyyaml"
 """

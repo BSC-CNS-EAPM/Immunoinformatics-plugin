@@ -1,8 +1,12 @@
 """
-Module containing the PredIG block for the Immunoinformatics plugin 
+Module containing the PredIG block for the Immunoinformatics plugin
 """
 
+from os import name
+
+import json
 import random
+import yaml
 
 from typing import Union, cast
 
@@ -30,9 +34,18 @@ setup_predig_variable = CustomVariable(
     name="Setup PredIG",
     description="Setup the PredIG simulation",
     customPage=setup_predig_page,
+    showInCanvas=True,
     type=VariableTypes.ANY,  # type: ignore
 )
 
+
+input_yaml_variable = PluginVariable(
+    id="input_yaml",
+    name="Input YAML",
+    description="Input configuration as a single yaml file. Overrides 'Setup' button.",
+    type=VariableTypes.FILE,
+    allowedValues=["yaml"]
+)
 
 # ==========================#
 # Variable inputs
@@ -158,6 +171,12 @@ def runPredIG(block: PluginBlock):
 
     # Get the input from the setup
     input_setup: Union[dict, None] = block.variables.get(setup_predig_variable.id, None)
+    input_yaml = block.inputs.get(input_yaml_variable.id)
+
+    if input_yaml:
+        # Override the input setup, obtain all values from input_yaml.
+        with open(input_yaml, "r", encoding="utf-8") as f:
+            input_setup = yaml.safe_load(f)
 
     if not input_setup:
         raise ValueError(
@@ -204,7 +223,6 @@ def runPredIG(block: PluginBlock):
                 wrong_alleles.append(allele)
 
         if len(wrong_alleles) > 0:
-
             raise ValueError(
                 "Please modify or remove the alleles in your list that are not part of the HLA 4-digits resolution format established by IMGT. e.g HLA-A*02:01 or HLA-A*100:101. Binding predictions within PredIG can not interpret other allelic nomenclatures correctly: \n{}".format(
                     "\n".join(wrong_alleles)
@@ -535,7 +553,6 @@ def runPredIG(block: PluginBlock):
     from App import AppDelegate  # type: ignore
 
     if AppDelegate().mode == "webapp":
-
         # Get only the last 3 components of the path /flo_dir/flow_results/results.csv
         safe_path = "/".join(safe_path.split("/")[-3:])
 
@@ -573,11 +590,11 @@ description += "\nPredIG score is a probability from 0 to 1, being 1 the max lik
 description += "\nNote: Max 500 queries per submission."
 
 
-predigBlock = InputBlock(
+predigBlock = PluginBlock(
     name="PredIG",
     description="An interpretable predictor of CD8+ T-cell epitope immunogenicity.\nPredIG predicts the immunogenicity of given pairs of epitope and HLA-I alleles.\nPredIG predicts the immunogenicity of full proteins vs. a list of HLA-I alleles.\nPredIG score is a probability from 0 to 1, being 1 the max likelihood for pHLA-I immunogenicity.\n\nNote: Max 500 queries per submission.",
     action=runPredIG,
-    variable=setup_predig_variable,
+    variables=[setup_predig_variable],
     # variables=[
     #     seedVar,
     #     modelVar,
@@ -587,6 +604,6 @@ predigBlock = InputBlock(
     #     alphaVar,
     #     precursorLenVar,
     # ],
-    # inputs=[inputCSV, inputTxtbox, modelXGVar],
-    output=outputPredIG,
+    inputs=[input_yaml_variable],
+    outputs=[outputPredIG],
 )
