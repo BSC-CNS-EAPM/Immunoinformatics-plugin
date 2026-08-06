@@ -49,4 +49,5 @@ predigYamlInputBlock = InputBlock(
     variable=yaml_code_variable,
     output=output_yaml_variable,
     action=write_predig_yaml,
+    category="PredIG",
 )

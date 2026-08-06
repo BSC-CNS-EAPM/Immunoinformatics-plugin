@@ -42,6 +42,43 @@ def create_plugin():
 
     # immunoPlugin.addBlock(tapBlock)
 
+    # ========== TCoaRse Blocks ========== #
+    # Horus port of the tcoarse_prediction.nf Nextflow pipeline
+    from Blocks.TCoaRse.AF3Outputs import af3OutputsBlock  # type: ignore
+    from Blocks.TCoaRse.ContactMaps import contactMapsBlock  # type: ignore
+    from Blocks.TCoaRse.CopyModels import copyModelsBlock  # type: ignore
+    from Blocks.TCoaRse.Embeddings import embeddingsBlock  # type: ignore
+    from Blocks.TCoaRse.EnergeticScorer import energeticScorerBlock  # type: ignore
+    from Blocks.TCoaRse.MergeEnergies import mergeEnergiesBlock  # type: ignore
+    from Blocks.TCoaRse.PairwiseDockQ import pairwiseDockQBlock  # type: ignore
+    from Blocks.TCoaRse.PredictorBimodal import predictorBimodalBlock  # type: ignore
+    from Blocks.TCoaRse.PredictorESMC import predictorESMCBlock  # type: ignore
+    from Blocks.TCoaRse.PredictorTCoaRse import predictorTCoaRseBlock  # type: ignore
+    from Blocks.TCoaRse.PyDockEnergies import pydockEnergiesBlock  # type: ignore
+    from Blocks.TCoaRse.QualityMetrics import qualityMetricsBlock  # type: ignore
+    from Blocks.TCoaRse.QualityTier import qualityTierBlock  # type: ignore
+    from Blocks.TCoaRse.Similarities import similaritiesBlock  # type: ignore
+    from Blocks.TCoaRse.StructureMetadata import structureMetadataBlock  # type: ignore
+
+    for tcoarseBlock in [
+        af3OutputsBlock,
+        qualityMetricsBlock,
+        qualityTierBlock,
+        copyModelsBlock,
+        structureMetadataBlock,
+        similaritiesBlock,
+        embeddingsBlock,
+        predictorESMCBlock,
+        pydockEnergiesBlock,
+        contactMapsBlock,
+        pairwiseDockQBlock,
+        energeticScorerBlock,
+        mergeEnergiesBlock,
+        predictorTCoaRseBlock,
+        predictorBimodalBlock,
+    ]:
+        immunoPlugin.addBlock(tcoarseBlock)
+
     # ========== Configs ========== #
     from Configs.columns_to_delete import columns_to_delete_config
 
@@ -86,6 +123,10 @@ def create_plugin():
     from Configs.predigModelsConfig import predigModelsConfig
 
     immunoPlugin.addConfig(predigModelsConfig)
+
+    from Configs.tcoarseConfig import tcoarseConfig
+
+    immunoPlugin.addConfig(tcoarseConfig)
 
     # ========== Pages ========== #
 
