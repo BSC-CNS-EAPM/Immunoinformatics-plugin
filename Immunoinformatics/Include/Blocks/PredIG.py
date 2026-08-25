@@ -14,6 +14,7 @@ from HorusAPI import (
     Extensions,
     PluginBlock,
     PluginVariable,
+    SlurmBlock,
     CustomVariable,
     VariableTypes,
     InputBlock,
@@ -93,6 +94,65 @@ outputPredIG = PluginVariable(
     description="The output csv",
     type=VariableTypes.FILE,  # type: ignore
     allowedValues=["csv"],
+)
+
+
+##############################
+#        Slurm variables     #
+##############################
+PREDIG_SPLIT_DIR = ".predig_split"
+PREDIG_JOB_RUNNER = "predig_job.py"
+RECORD_OUTPUT_FILE = "output_predig_record.csv"
+JOB_JSON_NAME = "job.json"
+
+DEFAULT_SLURM_TEMPLATE = """#!/bin/bash
+#SBATCH --job-name=predig_%record_id%
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=8G
+#SBATCH --time=02:00:00
+
+%command%
+"""
+
+useSlurmVariable = PluginVariable(
+    id="use_slurm",
+    name="Use Slurm",
+    description=(
+        "Submit the FASTA records of the input as Slurm job(s) using the "
+        "'Slurm script template'. Only applies to the FASTA simulation mode. "
+        "Use the 'Slurm batch size' variable to group several records per job."
+    ),
+    type=VariableTypes.BOOLEAN,
+    defaultValue=False,
+    category="Slurm",
+)
+
+slurmScriptVariable = PluginVariable(
+    id="slurm_script",
+    name="Slurm script template",
+    description=(
+        "SBATCH script template used to submit the FASTA records. The '%command%' "
+        "placeholder is replaced with the command that runs the PredIG pipeline for "
+        "the records of the job, and '%record_id%' is replaced with the identifier "
+        "of the first record of the batch."
+    ),
+    type=VariableTypes.CODE,
+    allowedValues=["shell"],
+    defaultValue=DEFAULT_SLURM_TEMPLATE,
+    category="Slurm",
+)
+
+slurmBatchSizeVariable = PluginVariable(
+    id="slurm_batch_size",
+    name="Slurm batch size",
+    description=(
+        "Number of FASTA records to run per Slurm job. Use 1 to submit one job per "
+        "record, a number bigger than 1 to group that amount of records per job, or "
+        "0 to run all the records in a single job."
+    ),
+    type=VariableTypes.INTEGER,
+    defaultValue=1,
+    category="Slurm",
 )
 
 
@@ -187,173 +247,13 @@ def _run_fasta_job(job: Dict[str, Any]):
     Run the whole PredIG pipeline for a single FASTA record inside its own
     working directory. Each job is self-contained so it can be dispatched to
     other executors (e.g. Slurm) later on.
+
+    Delegates to predig_job.run_fasta_job, which is also the entry point used
+    by the Slurm jobs.
     """
-    import os
+    from predig_job import run_fasta_job
 
-    import pandas as pd
-    import xgboost as xgb
-
-    workdir = job["workdir"]
-
-    with open(os.path.join(workdir, "input.fasta"), "w", encoding="utf-8") as file:
-        file.write(job["fasta_text"])
-
-    print("Running NetCleave")
-    df = runPredigNetCleave(
-        predigNetcleave_path=job["netCleavePath"],
-        mode=1,
-        fasta=os.path.join(workdir, "input.fasta"),
-        python_exec=job["python_exec"],
-        workdir=workdir,
-    )
-
-    # Add a new column to the dataframe, the HLA alleles
-    df_list = []
-    for value in job["alleles"]:
-        df_copy = df.copy()
-        df_copy["HLA_allele"] = value
-        df_list.append(df_copy)
-
-    df = pd.concat(df_list, ignore_index=True)
-
-    # Remove the index colum (does not have names)
-    df = df.reset_index(drop=True)
-
-    # Save as csv
-    df.to_csv(os.path.join(workdir, "input_fasta.csv"), index=False)
-
-    # Run the PCH ["epitope"]
-    print("Running PCH")
-    output_pch = runPredigPCH(
-        df_csv=df,
-        seed=int(job["seed"]),
-        predigPCH_path=job["pchPath"],
-        rscript_path=job["rscript_path"],
-        workdir=workdir,
-    )
-
-    print("Running MHCflurry")
-    # Run the MHCflurry ["epitope", "hla_allele"]
-    output_flurry = runPredigMHCflurry(
-        df_csv=df,
-        predigMHCflurry_path=job["mhcflurryPath"],
-        workdir=workdir,
-    )
-
-    print("Running NOAH")
-
-    # Run the NOAH, ["HLA", "epitope", "NOAH_score"] id="HLA", "epitope"
-    output_noah = runPredigNOAH(
-        df_csv=df,
-        predigNOAH_path=job["noahPath"],
-        model=job["model"],
-        python_exec=job["python_exec"],
-        workdir=workdir,
-    )
-
-    print("Running tapmat_pred_fsa")
-    output_tapmap = run_Predig_tapmap(
-        df_csv=df,
-        tapmap_path=job["tapmap_path"],
-        mat=job["mat"],
-        peptide_len=None,
-        alpha=job["alpha"],
-        precursor_len=job["precursor_len"],
-        workdir=workdir,
-    )
-
-    print("Joining the outputs")
-
-    df_joined = output_pch.merge(
-        output_flurry, left_index=True, right_index=True, how="left"
-    )
-
-    df_joined = df_joined.merge(df, left_index=True, right_index=True, how="left")
-
-    df_joined = df_joined.merge(
-        output_tapmap,
-        left_index=True,
-        right_index=True,
-        how="left",
-        suffixes=("", "_tapmap"),
-    )
-
-    df_joined["id"] = df_joined["hla_allele"] + "_" + df_joined["epitope"]
-    output_noah["id"] = output_noah["hla_allele"] + "_" + output_noah["epitope"]
-    df_joined = df_joined.merge(
-        output_noah, on="id", how="left", suffixes=("", "_noah")
-    )
-
-    print("Launching the XGBoost model")
-    if "hla_allele_y" in df_joined.columns:
-        df_joined = df_joined.drop(columns=["hla_allele_y"])
-    if "hla_allele_x" in df_joined.columns:
-        df_joined = df_joined.rename(columns={"hla_allele_x": "hla_allele"})
-
-    df_xgboost = df_joined[
-        [
-            "netcleave",
-            "NOAH",
-            "mw_peptide",
-            "mw_tcr_contact",
-            "hydroph_peptide",
-            "hydroph_tcr_contact",
-            "charge_peptide",
-            "charge_tcr_contact",
-            "stab_peptide",
-            "mhcflurry_affinity",
-            "mhcflurry_affinity_percentile",
-            "mhcflurry_processing_score",
-            "mhcflurry_presentation_score",
-        ]
-    ]
-
-    # df_xgboost.to_csv("df_xgboost.csv", index=False)
-    predig_model = xgb.Booster()
-    predig_model.load_model(job["modelXG"])
-    predig_input_matrix = xgb.DMatrix(df_xgboost)
-    predig_score = predig_model.predict(predig_input_matrix)
-    df_joined = pd.concat([df_joined, pd.Series(predig_score, name="predig")], axis=1)
-
-    df_joined["id"] = df_joined["hla_allele"] + "_" + df_joined["epitope"]
-
-    df_joined["source_protein"] = job["record_id"]
-
-    # Rename and sort the columns
-    name_mapping = {
-        "Id": "ID",
-        "Source_protein": "source_protein",
-        "Epitope": "epitope",
-        "Hla_allele": "HLA_allele",
-        "Predig": "PredIG",
-        "NOAH": "NOAH",
-        "TAP": "TAP",
-        "Netcleave": "NetCleave",
-        "Mhcflurry_affinity": "mhcflurry_affinity",
-        "Mhcflurry_affinity_percentile": "mhcflurry_affinity_percentile",
-        "Mhcflurry_presentation_score": "mhcflurry_presentation_score",
-        "Mhcflurry_processing_score": "mhcflurry_processing_score",
-        "Hydroph_peptide": "Hydrophobicity_peptide",
-        "Mw_peptide": "MW_peptide",
-        "Charge_peptide": "Charge_peptide",
-        "Stab_peptide": "Stab_peptide",
-        "Tcr_contact": "TCR_contact",
-        "Hydroph_tcr_contact": "Hydrophobicity_tcr_contact",
-        "Mw_tcr_contact": "MW_tcr_contact",
-        "Charge_tcr_contact": "Charge_tcr_contact",
-    }
-
-    name_mapping = {key.lower(): value for key, value in name_mapping.items()}
-
-    df_joined = df_joined.rename(str.lower, axis="columns")
-
-    # Sort based on the mapping
-    df_joined = df_joined[name_mapping.keys()]
-
-    # Rename
-    df_joined = df_joined.rename(columns=name_mapping)
-
-    return df_joined.reset_index(drop=True)
+    return run_fasta_job(job)
 
 
 def _run_fasta_jobs(common: Dict[str, Any], input_text: str):
@@ -376,7 +276,7 @@ def _run_fasta_jobs(common: Dict[str, Any], input_text: str):
 
     print(f"Input contains {len(records)} FASTA record(s)")
 
-    base_dir = os.path.abspath(".predig_split")
+    base_dir = os.path.abspath(PREDIG_SPLIT_DIR)
     os.makedirs(base_dir, exist_ok=True)
 
     jobs = []
@@ -489,6 +389,259 @@ def _finalize_output(block: PluginBlock, df_joined) -> None:
         f.write(block.blockLogs)
 
     block.setOutput(outputPredIG.id, filename)
+
+
+##############################
+#       Slurm execution      #
+##############################
+def _render_slurm_script(template: str, command: str, record_id: str) -> str:
+    """
+    Render the Slurm script template for a single FASTA record. The
+    '%command%' placeholder is replaced with the command that runs the PredIG
+    pipeline and '%record_id%' with the identifier of the record.
+    """
+
+    if template is None or template.strip() == "":
+        raise ValueError(
+            "The Slurm script template is empty. Provide a valid SBATCH script "
+            "containing a '%command%' placeholder."
+        )
+
+    if "%command%" not in template:
+        raise ValueError(
+            "The Slurm script template must contain a '%command%' placeholder "
+            "where the PredIG command will be inserted."
+        )
+
+    return template.replace("%command%", command).replace("%record_id%", record_id)
+
+
+def _slurm_log_tail(workdir: str, max_lines: int = 30) -> Union[str, None]:
+    """
+    Return the tail of the Slurm output log of a record working directory,
+    if present.
+    """
+    import glob
+    import os
+
+    logs = sorted(glob.glob(os.path.join(workdir, "slurm*.out")))
+
+    if len(logs) == 0:
+        return None
+
+    with open(logs[0], "r", encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+
+    tail = "".join(lines[-max_lines:])
+
+    return f"Last lines of '{os.path.basename(logs[0])}':\n{tail}"
+
+
+def _submit_slurm_jobs(block: PluginBlock, common: Dict[str, Any], input_text: str):
+    """
+    Prepare one working directory per FASTA record and submit them as Slurm
+    job(s) using the 'slurm_script' template variable. The records are grouped
+    in batches according to the 'slurm_batch_size' variable: one job per
+    record (1), groups of N records, or all the records in a single job (0).
+    """
+    import os
+    import shutil
+
+    records = _split_fasta(input_text)
+
+    if len(records) == 0:
+        raise ValueError(
+            "No valid FASTA records were found in the input. Make sure it contains at least one entry starting with '>' followed by its sequence."
+        )
+
+    print(f"Input contains {len(records)} FASTA record(s)")
+
+    template = block.variables.get(slurmScriptVariable.id)
+
+    # Parse the batch size
+    raw_batch_size = block.variables.get(slurmBatchSizeVariable.id, 1)
+    try:
+        batch_size = int(raw_batch_size)
+    except (TypeError, ValueError):
+        raise ValueError("The 'Slurm batch size' variable must be an integer.")
+
+    if batch_size < 0:
+        raise ValueError("The 'Slurm batch size' variable can not be negative.")
+
+    # A batch size of 0 (or bigger than the amount of records) runs all the
+    # records in a single job
+    if batch_size == 0 or batch_size > len(records):
+        batch_size = len(records)
+
+    base_dir = os.path.abspath(PREDIG_SPLIT_DIR)
+    os.makedirs(base_dir, exist_ok=True)
+
+    # Copy the job runner next to the record folders so it is shipped to the
+    # remote together with the inputs
+    runner_src = os.path.join(block.pluginDir, "Include", PREDIG_JOB_RUNNER)
+    if not os.path.isfile(runner_src):
+        raise FileNotFoundError(
+            f"Could not find the PredIG job runner at '{runner_src}'."
+        )
+    shutil.copy2(runner_src, os.path.join(base_dir, PREDIG_JOB_RUNNER))
+
+    record_infos = []
+
+    for index, (header, sequence) in enumerate(records):
+        record_id = _record_id(header)
+        dirname = f"record_{index}"
+        workdir = os.path.join(base_dir, dirname)
+        os.makedirs(workdir, exist_ok=True)
+
+        job = {
+            **common,
+            "record_id": record_id,
+            "fasta_text": f">{header}\n{sequence}\n",
+            "workdir": ".",
+        }
+
+        with open(os.path.join(workdir, JOB_JSON_NAME), "w", encoding="utf-8") as f:
+            json.dump(job, f, indent=2)
+
+        # Remove results from previous runs of the same record
+        output_csv = os.path.join(workdir, RECORD_OUTPUT_FILE)
+        if os.path.isfile(output_csv):
+            os.remove(output_csv)
+
+        record_infos.append({"record_id": record_id, "dirname": dirname})
+
+    # Group the records in batches and generate one script per batch. The
+    # scripts live next to the runner and the record folders (both local and
+    # remote), so relative paths are used to reach them.
+    batches = [
+        record_infos[i : i + batch_size]
+        for i in range(0, len(record_infos), batch_size)
+    ]
+
+    local_scripts = []
+
+    for index, batch in enumerate(batches):
+        record_dirs = " ".join(info["dirname"] for info in batch)
+        command = f"python {PREDIG_JOB_RUNNER} {record_dirs}"
+
+        # '%record_id%' refers to the first record of the batch
+        script_path = os.path.join(base_dir, f"batch_{index}.sbatch")
+
+        with open(script_path, "w", encoding="utf-8") as f:
+            f.write(_render_slurm_script(template, command, batch[0]["record_id"]))
+
+        local_scripts.append(script_path)
+
+    print(f"Submitting {len(batches)} Slurm job(s) with a batch size of {batch_size} record(s)")
+
+    # Send the folder with the inputs and the runner to the remote if needed
+    remote_base_dir = None
+    if not block.remote.isLocal:
+        from Server.FlowManager import Flow  # type: ignore
+
+        local_flow_workdir = os.path.basename(Flow.flowWorkDir(block.flow.path))
+        destination = os.path.join(
+            block.remote.workDir, local_flow_workdir, os.path.basename(base_dir)
+        )
+
+        print(f"Sending the PredIG inputs to '{destination}'")
+
+        remote_base_dir = block.remote.sendData(base_dir, destination)
+
+    scripts_to_submit = list(local_scripts)
+    if remote_base_dir:
+        scripts_to_submit = [
+            os.path.join(remote_base_dir, os.path.basename(script))
+            for script in local_scripts
+        ]
+
+    # Submit all the jobs at once, Horus takes care of polling their status
+    job_ids = block.remote.submitJob(scripts_to_submit)
+    if isinstance(job_ids, str):
+        job_ids = [job_ids]
+
+    for index, (batch, job_id) in enumerate(zip(batches, job_ids)):
+        record_ids = ", ".join(info["record_id"] for info in batch)
+        print(
+            f"Submitted Slurm job {job_id} for batch {index + 1}/{len(batches)}: [{record_ids}]"
+        )
+
+    block.extraData["predig_used_slurm"] = True
+    block.extraData["predig_base_dir"] = base_dir
+    block.extraData["predig_remote_base_dir"] = remote_base_dir
+    block.extraData["predig_records"] = record_infos
+
+    print(
+        f"{len(batches)} Slurm job(s) submitted. The results will be collected when all the jobs are finished."
+    )
+
+
+def collectSlurmResults(block: PluginBlock):
+    """
+    Final action of the PredIG block. Collects the outputs of the per-record
+    Slurm jobs, merges them and saves the final CSV. Does nothing when the
+    Slurm execution was not enabled.
+    """
+    import os
+    import shutil
+
+    if not block.extraData.get("predig_used_slurm", False):
+        return None
+
+    # Reset the flag first so a following run never reuses stale state
+    block.extraData["predig_used_slurm"] = False
+
+    import pandas as pd
+
+    base_dir = block.extraData.get("predig_base_dir", PREDIG_SPLIT_DIR)
+    records = block.extraData.get("predig_records", [])
+    remote_base_dir = block.extraData.pop("predig_remote_base_dir", None)
+
+    if remote_base_dir:
+        print(f"Downloading the PredIG results from '{remote_base_dir}'")
+        block.remote.getData(remote_base_dir, os.path.dirname(base_dir))
+
+    results = []
+    failed = []
+    total = len(records)
+
+    for position, record in enumerate(records):
+        record_id = record["record_id"]
+        workdir = os.path.join(base_dir, record["dirname"])
+        output_csv = os.path.join(workdir, RECORD_OUTPUT_FILE)
+
+        if os.path.isfile(output_csv):
+            results.append(pd.read_csv(output_csv))
+            shutil.rmtree(workdir, ignore_errors=True)
+            print(f"[{position + 1}/{total}] Record '{record_id}' finished successfully")
+        else:
+            failed.append((record_id, workdir))
+            print(f"[{position + 1}/{total}] Record '{record_id}' failed and was skipped")
+            log_tail = _slurm_log_tail(workdir)
+            if log_tail:
+                print(log_tail)
+
+    for key in ("predig_base_dir", "predig_records"):
+        block.extraData.pop(key, None)
+
+    if len(results) == 0:
+        shutil.rmtree(base_dir, ignore_errors=True)
+        raise ValueError("All FASTA records failed. Check the logs above for details.")
+
+    if len(failed) > 0:
+        print(f"{len(failed)} of {total} FASTA record(s) failed:")
+        for record_id, workdir in failed:
+            print(f"- '{record_id}': Partial results kept at '{workdir}'")
+        try:
+            os.rmdir(base_dir)
+        except OSError:
+            pass
+
+    print("Merging results from all records")
+
+    df_final = pd.concat(results, ignore_index=True)
+
+    _finalize_output(block, df_final.reset_index(drop=True))
 
 
 # Align action block
@@ -671,10 +824,25 @@ def runPredIG(block: PluginBlock):
         "python_exec": python_exec,
     }
 
+    use_slurm = bool(block.variables.get(useSlurmVariable.id, False))
+
     if simulation == 1:
+        if use_slurm:
+            _submit_slurm_jobs(block, common, input_text)
+            return
+
+        block.extraData["predig_used_slurm"] = False
         df_joined = _run_fasta_jobs(common, input_text)
         _finalize_output(block, df_joined)
         return
+
+    if use_slurm:
+        print(
+            "Slurm submission is only supported for the FASTA simulation mode. "
+            "The simulation will run locally."
+        )
+
+    block.extraData["predig_used_slurm"] = False
 
     with open("input.csv", "w", encoding="utf-8") as file:
         # Clean the input CSV by removing unnedded quotes "" before writting
@@ -856,11 +1024,13 @@ description += "\nPredIG score is a probability from 0 to 1, being 1 the max lik
 description += "\nNote: Max 500 queries per submission."
 
 
-predigBlock = PluginBlock(
+predigBlock = SlurmBlock(
     name="PredIG",
     description="An interpretable predictor of CD8+ T-cell epitope immunogenicity.\nPredIG predicts the immunogenicity of given pairs of epitope and HLA-I alleles.\nPredIG predicts the immunogenicity of full proteins vs. a list of HLA-I alleles.\nPredIG score is a probability from 0 to 1, being 1 the max likelihood for pHLA-I immunogenicity.\n\nNote: Max 500 queries per submission.",
-    action=runPredIG,
-    variables=[setup_predig_variable],
+    initialAction=runPredIG,
+    finalAction=collectSlurmResults,
+    failOnSlurmError=False,
+    variables=[setup_predig_variable, useSlurmVariable, slurmScriptVariable],
     # variables=[
     #     seedVar,
     #     modelVar,
