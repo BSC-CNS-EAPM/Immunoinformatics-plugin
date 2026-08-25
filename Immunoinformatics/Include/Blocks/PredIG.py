@@ -8,7 +8,7 @@ import json
 import random
 import yaml
 
-from typing import Union, cast
+from typing import Any, Dict, List, Tuple, Union, cast
 
 from HorusAPI import (
     Extensions,
@@ -150,6 +150,347 @@ outputPredIG = PluginVariable(
 # )
 
 
+def _split_fasta(text: str) -> List[Tuple[str, str]]:
+    """
+    Split the contents of a (multi)fasta into (header, sequence) records.
+    """
+    records: List[Tuple[str, str]] = []
+    header: Union[str, None] = None
+    sequence_lines: List[str] = []
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(">"):
+            if header is not None:
+                records.append((header, "\n".join(sequence_lines)))
+            header = stripped[1:].strip()
+            sequence_lines = []
+        elif header is not None and stripped != "":
+            sequence_lines.append(stripped)
+
+    if header is not None:
+        records.append((header, "\n".join(sequence_lines)))
+
+    return [(h, s) for h, s in records if s != ""]
+
+
+def _record_id(header: str) -> str:
+    """
+    Extract a short identifier from a fasta header.
+    """
+    parts = header.split()
+    return parts[0] if len(parts) > 0 else header
+
+
+def _run_fasta_job(job: Dict[str, Any]):
+    """
+    Run the whole PredIG pipeline for a single FASTA record inside its own
+    working directory. Each job is self-contained so it can be dispatched to
+    other executors (e.g. Slurm) later on.
+    """
+    import os
+
+    import pandas as pd
+    import xgboost as xgb
+
+    workdir = job["workdir"]
+
+    with open(os.path.join(workdir, "input.fasta"), "w", encoding="utf-8") as file:
+        file.write(job["fasta_text"])
+
+    print("Running NetCleave")
+    df = runPredigNetCleave(
+        predigNetcleave_path=job["netCleavePath"],
+        mode=1,
+        fasta=os.path.join(workdir, "input.fasta"),
+        python_exec=job["python_exec"],
+        workdir=workdir,
+    )
+
+    # Add a new column to the dataframe, the HLA alleles
+    df_list = []
+    for value in job["alleles"]:
+        df_copy = df.copy()
+        df_copy["HLA_allele"] = value
+        df_list.append(df_copy)
+
+    df = pd.concat(df_list, ignore_index=True)
+
+    # Remove the index colum (does not have names)
+    df = df.reset_index(drop=True)
+
+    # Save as csv
+    df.to_csv(os.path.join(workdir, "input_fasta.csv"), index=False)
+
+    # Run the PCH ["epitope"]
+    print("Running PCH")
+    output_pch = runPredigPCH(
+        df_csv=df,
+        seed=int(job["seed"]),
+        predigPCH_path=job["pchPath"],
+        rscript_path=job["rscript_path"],
+        workdir=workdir,
+    )
+
+    print("Running MHCflurry")
+    # Run the MHCflurry ["epitope", "hla_allele"]
+    output_flurry = runPredigMHCflurry(
+        df_csv=df,
+        predigMHCflurry_path=job["mhcflurryPath"],
+        workdir=workdir,
+    )
+
+    print("Running NOAH")
+
+    # Run the NOAH, ["HLA", "epitope", "NOAH_score"] id="HLA", "epitope"
+    output_noah = runPredigNOAH(
+        df_csv=df,
+        predigNOAH_path=job["noahPath"],
+        model=job["model"],
+        python_exec=job["python_exec"],
+        workdir=workdir,
+    )
+
+    print("Running tapmat_pred_fsa")
+    output_tapmap = run_Predig_tapmap(
+        df_csv=df,
+        tapmap_path=job["tapmap_path"],
+        mat=job["mat"],
+        peptide_len=None,
+        alpha=job["alpha"],
+        precursor_len=job["precursor_len"],
+        workdir=workdir,
+    )
+
+    print("Joining the outputs")
+
+    df_joined = output_pch.merge(
+        output_flurry, left_index=True, right_index=True, how="left"
+    )
+
+    df_joined = df_joined.merge(df, left_index=True, right_index=True, how="left")
+
+    df_joined = df_joined.merge(
+        output_tapmap,
+        left_index=True,
+        right_index=True,
+        how="left",
+        suffixes=("", "_tapmap"),
+    )
+
+    df_joined["id"] = df_joined["hla_allele"] + "_" + df_joined["epitope"]
+    output_noah["id"] = output_noah["hla_allele"] + "_" + output_noah["epitope"]
+    df_joined = df_joined.merge(
+        output_noah, on="id", how="left", suffixes=("", "_noah")
+    )
+
+    print("Launching the XGBoost model")
+    if "hla_allele_y" in df_joined.columns:
+        df_joined = df_joined.drop(columns=["hla_allele_y"])
+    if "hla_allele_x" in df_joined.columns:
+        df_joined = df_joined.rename(columns={"hla_allele_x": "hla_allele"})
+
+    df_xgboost = df_joined[
+        [
+            "netcleave",
+            "NOAH",
+            "mw_peptide",
+            "mw_tcr_contact",
+            "hydroph_peptide",
+            "hydroph_tcr_contact",
+            "charge_peptide",
+            "charge_tcr_contact",
+            "stab_peptide",
+            "mhcflurry_affinity",
+            "mhcflurry_affinity_percentile",
+            "mhcflurry_processing_score",
+            "mhcflurry_presentation_score",
+        ]
+    ]
+
+    # df_xgboost.to_csv("df_xgboost.csv", index=False)
+    predig_model = xgb.Booster()
+    predig_model.load_model(job["modelXG"])
+    predig_input_matrix = xgb.DMatrix(df_xgboost)
+    predig_score = predig_model.predict(predig_input_matrix)
+    df_joined = pd.concat([df_joined, pd.Series(predig_score, name="predig")], axis=1)
+
+    df_joined["id"] = df_joined["hla_allele"] + "_" + df_joined["epitope"]
+
+    df_joined["source_protein"] = job["record_id"]
+
+    # Rename and sort the columns
+    name_mapping = {
+        "Id": "ID",
+        "Source_protein": "source_protein",
+        "Epitope": "epitope",
+        "Hla_allele": "HLA_allele",
+        "Predig": "PredIG",
+        "NOAH": "NOAH",
+        "TAP": "TAP",
+        "Netcleave": "NetCleave",
+        "Mhcflurry_affinity": "mhcflurry_affinity",
+        "Mhcflurry_affinity_percentile": "mhcflurry_affinity_percentile",
+        "Mhcflurry_presentation_score": "mhcflurry_presentation_score",
+        "Mhcflurry_processing_score": "mhcflurry_processing_score",
+        "Hydroph_peptide": "Hydrophobicity_peptide",
+        "Mw_peptide": "MW_peptide",
+        "Charge_peptide": "Charge_peptide",
+        "Stab_peptide": "Stab_peptide",
+        "Tcr_contact": "TCR_contact",
+        "Hydroph_tcr_contact": "Hydrophobicity_tcr_contact",
+        "Mw_tcr_contact": "MW_tcr_contact",
+        "Charge_tcr_contact": "Charge_tcr_contact",
+    }
+
+    name_mapping = {key.lower(): value for key, value in name_mapping.items()}
+
+    df_joined = df_joined.rename(str.lower, axis="columns")
+
+    # Sort based on the mapping
+    df_joined = df_joined[name_mapping.keys()]
+
+    # Rename
+    df_joined = df_joined.rename(columns=name_mapping)
+
+    return df_joined.reset_index(drop=True)
+
+
+def _run_fasta_jobs(common: Dict[str, Any], input_text: str):
+    """
+    Split the input multiFASTA and run one PredIG pipeline per record.
+    Records are processed sequentially; a failing record is reported and
+    skipped. Returns the merged DataFrame of all successful records.
+    """
+    import os
+    import shutil
+
+    import pandas as pd
+
+    records = _split_fasta(input_text)
+
+    if len(records) == 0:
+        raise ValueError(
+            "No valid FASTA records were found in the input. Make sure it contains at least one entry starting with '>' followed by its sequence."
+        )
+
+    print(f"Input contains {len(records)} FASTA record(s)")
+
+    base_dir = os.path.abspath(".predig_split")
+    os.makedirs(base_dir, exist_ok=True)
+
+    jobs = []
+    for index, (header, sequence) in enumerate(records):
+        jobs.append(
+            {
+                **common,
+                "record_id": _record_id(header),
+                "fasta_text": f">{header}\n{sequence}\n",
+                "workdir": os.path.join(base_dir, f"record_{index}"),
+                "ok": False,
+            }
+        )
+
+    results = []
+    failed = []
+    total = len(jobs)
+
+    for position, job in enumerate(jobs):
+        record_id = job["record_id"]
+        print(f"[{position + 1}/{total}] Running PredIG for record '{record_id}'")
+        try:
+            os.makedirs(job["workdir"], exist_ok=True)
+            results.append(_run_fasta_job(job))
+            job["ok"] = True
+            print(f"[{position + 1}/{total}] Record '{record_id}' finished successfully")
+        except Exception as e:
+            failed.append((record_id, job["workdir"], str(e)))
+            print(f"[{position + 1}/{total}] Record '{record_id}' failed and was skipped: {e}")
+
+    for job in jobs:
+        if job["ok"]:
+            shutil.rmtree(job["workdir"], ignore_errors=True)
+
+    if len(results) == 0:
+        shutil.rmtree(base_dir, ignore_errors=True)
+    else:
+        try:
+            os.rmdir(base_dir)
+        except OSError:
+            pass
+
+    if len(failed) > 0:
+        print(f"{len(failed)} of {total} FASTA record(s) failed:")
+        for record_id, workdir, error in failed:
+            print(f"- '{record_id}': {error}")
+            print(f"  Partial results kept at '{os.path.abspath(workdir)}'")
+
+    if len(results) == 0:
+        raise ValueError("All FASTA records failed. Check the logs above for details.")
+
+    print("Merging results from all records")
+
+    df_final = pd.concat(results, ignore_index=True)
+
+    return df_final.reset_index(drop=True)
+
+
+def _finalize_output(block: PluginBlock, df_joined) -> None:
+    """
+    Apply the final column cleanup, save the merged CSV and report the results.
+    """
+    import glob
+    import os
+
+    columns_to_delete: list[str] = block.config.get("columns_to_delete")
+
+    if columns_to_delete:
+        columns_to_delete = [c.lower() for c in columns_to_delete]
+        for col in df_joined.columns:
+            if col.lower() in columns_to_delete:
+                df_joined = df_joined.drop(columns=col)
+
+    # Remove any *_output.csv file to prevent other programs messing the folder
+    for file in glob.glob("*output*.csv"):
+        os.remove(file)
+
+    # Save the results as a CSV
+    filename = block.flow.name + "_output.csv"
+    df_joined.to_csv(filename, index=False)
+
+    print("PredIG simulations finished")
+
+    safe_path = os.path.abspath(filename)
+
+    from App import AppDelegate  # type: ignore
+
+    if AppDelegate().mode == "webapp":
+        # Get only the last 3 components of the path /flo_dir/flow_results/results.csv
+        safe_path = "/".join(safe_path.split("/")[-3:])
+
+    print(f"Results are at: '{safe_path}'")
+
+    Extensions().open(
+        "immuno",
+        "results",
+        data={"csv": safe_path},
+        title="PredIG results",
+    )
+
+    Extensions().storeExtensionResults(
+        "immuno",
+        "results",
+        data={"csv": safe_path},
+        title="PredIG results",
+    )
+
+    # Save the blocklogs to a file
+    with open("predig.log", "w") as f:
+        f.write(block.blockLogs)
+
+    block.setOutput(outputPredIG.id, filename)
+
+
 # Align action block
 def runPredIG(block: PluginBlock):
     """
@@ -206,7 +547,6 @@ def runPredIG(block: PluginBlock):
             raise ValueError(
                 "The input file must contain tab or comma separated values."
             )
-        input_file = "input.csv"
     else:
         alleles = input_setup.get("HLA_alleles", "")
         if not alleles or alleles == "":
@@ -232,25 +572,13 @@ def runPredIG(block: PluginBlock):
             [allele.strip() for allele in alleles.split("\n") if allele.strip() != ""]
         )
 
-        input_file = "input.fasta"
-
     simulation_map = {
         1: "FASTA",
         2: "UNIPROT",
         3: "RECOMBINANT",
     }
 
-    # print("====================INPUTS======================")
-    # print("Input file: ", input_file)
-    # print("Input text: ", input_text)
-    # if alleles:
-    #     print("HLA alleles: ", alleles)
     print(f"Simulation type: {simulation_map[simulation]} ({simulation})")
-    # print("==========================================")
-
-    with open(input_file, "w", encoding="utf-8") as file:
-        # Clean the input CSV by removing unnedded quotes "" before writting
-        file.write(input_text)
 
     # Get the seed
     seed = int(input_setup.get("seed", random.randint(0, 10000)))
@@ -323,80 +651,70 @@ def runPredIG(block: PluginBlock):
         "/home/perry/data/Programs/Immuno/netCTLpan-1.1/Linux_x86_64/bin/tapmat_pred_fsa",
     )
 
-    # /home/perry/data/Github/Neoantigens-NOAH/noah/main_NOAH.py
+    rscript_path = block.config.get("rscript_path", "Rscript")
+    python_exec = block.config.get("python_exec", "python")
+
+    common = {
+        "alleles": [a.strip() for a in alleles.split("\n")],
+        "seed": seed,
+        "model": model,
+        "modelXG": modelXG,
+        "mat": mat,
+        "alpha": alpha,
+        "precursor_len": precursor_len,
+        "pchPath": pchPath,
+        "rscript_path": rscript_path,
+        "mhcflurryPath": mhcflurryPath,
+        "netCleavePath": netCleavePath,
+        "noahPath": noahPath,
+        "tapmap_path": tapmat_pred_fsa_path,
+        "python_exec": python_exec,
+    }
+
+    if simulation == 1:
+        df_joined = _run_fasta_jobs(common, input_text)
+        _finalize_output(block, df_joined)
+        return
+
+    with open("input.csv", "w", encoding="utf-8") as file:
+        # Clean the input CSV by removing unnedded quotes "" before writting
+        file.write(input_text)
+
     # Check if the input file is valid
-    if not os.path.isfile(input_file):
+    if not os.path.isfile("input.csv"):
         raise ValueError("The input file is not valid")
 
     import pandas as pd
 
-    df = None
-    fasta = None
-    if simulation == 1:
-        fasta = input_file.replace('"', "").replace("'", "")
-    else:
-        df = pd.read_csv(input_file)
+    df = pd.read_csv("input.csv")
 
-        # Replace cells that have "" or ''
-        df = df.replace('"', "")
-        df = df.replace("'", "")
+    # Replace cells that have "" or ''
+    df = df.replace('"', "")
+    df = df.replace("'", "")
 
-        # Verify that each row has the correct number of columns (all are filled)
-        column_lenght = df.shape[1]
+    # Verify that each row has the correct number of columns (all are filled)
+    column_lenght = df.shape[1]
 
-        for i, row in df.iterrows():
-            if len(row) != column_lenght:
-                raise ValueError(
-                    "The input CSV file must contain the same number of columns in each row."
-                )
+    for i, row in df.iterrows():
+        if len(row) != column_lenght:
+            raise ValueError(
+                "The input CSV file must contain the same number of columns in each row."
+            )
 
-        # if df.shape[0] > 5000:
-        #     raise ValueError("The input CSV file must contain less than 5000 rows.")
-
-    python_exec = block.config.get("python_exec", "python")
+    # if df.shape[0] > 5000:
+    #     raise ValueError("The input CSV file must contain less than 5000 rows.")
     print("Running NetCleave")
-    # Run the NetCleave / can be placed before to generate csv when case of Fasta
-    # When fasta set Hallele in input
     output_netcleave = runPredigNetCleave(
         df_csv=df,
         predigNetcleave_path=netCleavePath,
         mode=simulation,
-        fasta=fasta,
         python_exec=python_exec,
     )
 
-    # If we are runnign with a fasta, concatenate the results of netcleave with HLA alleles
-    if simulation == 1:
-        df = output_netcleave
-
-        # Add a new column to the dataframe, the HLA alleles
-        alleles: str = input_setup.get("HLA_alleles", "")
-
-        list_alleles = alleles.split("\n")
-
-        # Initialize an empty list to hold DataFrames
-        df_list = []
-
-        # Loop through the list of values and create a DataFrame for each one
-        for value in list_alleles:
-            df_copy = df.copy()
-            df_copy["HLA_allele"] = value.strip()
-            df_list.append(df_copy)
-
-        df = pd.concat(df_list, ignore_index=True)
-
-        # Remove the index colum (does not have names)
-        df = df.reset_index(drop=True)
-
-        # Save as csv
-        df.to_csv("input_fasta.csv", index=False)
-
-    else:
-        df = cast(pd.DataFrame, df)
+    df = cast(pd.DataFrame, df)
 
     # Run the PCH ["epitope"]
     print("Running PCH")
-    rscript_path = block.config.get("rscript_path", "Rscript")
     output_pch = runPredigPCH(
         df_csv=df,
         seed=int(seed),
@@ -440,12 +758,9 @@ def runPredIG(block: PluginBlock):
         output_flurry, left_index=True, right_index=True, how="left"
     )
 
-    if simulation == 1:
-        df_joined = df_joined.merge(df, left_index=True, right_index=True, how="left")
-    else:
-        df_joined = df_joined.merge(
-            output_netcleave, left_index=True, right_index=True, how="left"
-        )
+    df_joined = df_joined.merge(
+        output_netcleave, left_index=True, right_index=True, how="left"
+    )
 
     df_joined = df_joined.merge(
         output_tapmap,
@@ -527,56 +842,7 @@ def runPredIG(block: PluginBlock):
     # Rename
     df_joined = df_joined.rename(columns=name_mapping)
 
-    # Remove unwanted columns
-    columns_to_delete: list[str] = block.config.get("columns_to_delete")
-
-    if columns_to_delete:
-        columns_to_delete = [c.lower() for c in columns_to_delete]
-        for col in df_joined.columns:
-            if col.lower() in columns_to_delete:
-                df_joined = df_joined.drop(columns=col)
-
-    # Remove any *_output.csv file to prevent other programs messing the folder
-    import glob
-
-    for file in glob.glob("*output*.csv"):
-        os.remove(file)
-
-    # Save the results as a CSV
-    filename = block.flow.name + "_output.csv"
-    df_joined.to_csv(filename, index=False)
-
-    print("PredIG simulations finished")
-
-    safe_path = os.path.abspath(filename)
-
-    from App import AppDelegate  # type: ignore
-
-    if AppDelegate().mode == "webapp":
-        # Get only the last 3 components of the path /flo_dir/flow_results/results.csv
-        safe_path = "/".join(safe_path.split("/")[-3:])
-
-    print(f"Results are at: '{safe_path}'")
-
-    Extensions().open(
-        "immuno",
-        "results",
-        data={"csv": safe_path},
-        title="PredIG results",
-    )
-
-    Extensions().storeExtensionResults(
-        "immuno",
-        "results",
-        data={"csv": safe_path},
-        title="PredIG results",
-    )
-
-    # Save the blocklogs to a file
-    with open("predig.log", "w") as f:
-        f.write(block.blockLogs)
-
-    block.setOutput(outputPredIG.id, filename)
+    _finalize_output(block, df_joined)
 
 
 description = "An interpretable predictor of CD8+ T-cell epitope immunogenicity."
