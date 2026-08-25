@@ -526,7 +526,12 @@ def _submit_slurm_jobs(block: PluginBlock, common: Dict[str, Any], input_text: s
 
     for index, batch in enumerate(batches):
         record_dirs = " ".join(info["dirname"] for info in batch)
-        command = f"python {PREDIG_JOB_RUNNER} {record_dirs}"
+
+        # Use the configured Python executable so the job inherits the same
+        # environment (with pandas, xgboost, NetCleave/NOAH dependencies)
+        # as the local run
+        python_exec = common.get("python_exec") or "python"
+        command = f"{python_exec} {PREDIG_JOB_RUNNER} {record_dirs}"
 
         # '%record_id%' refers to the first record of the batch
         script_path = os.path.join(base_dir, f"batch_{index}.sbatch")
