@@ -561,6 +561,8 @@ def _submit_slurm_jobs(block: PluginBlock, common: Dict[str, Any], input_text: s
             for script in local_scripts
         ]
 
+    print("scripts_to_submit", scripts_to_submit)
+
     # Submit all the jobs at once, Horus takes care of polling their status
     job_ids = block.remote.submitJob(scripts_to_submit)
     if isinstance(job_ids, str):
@@ -618,7 +620,7 @@ def collectSlurmResults(block: PluginBlock):
 
         if os.path.isfile(output_csv):
             results.append(pd.read_csv(output_csv))
-            shutil.rmtree(workdir, ignore_errors=True)
+            # shutil.rmtree(workdir, ignore_errors=True)
             print(
                 f"[{position + 1}/{total}] Record '{record_id}' finished successfully"
             )
@@ -635,17 +637,13 @@ def collectSlurmResults(block: PluginBlock):
         block.extraData.pop(key, None)
 
     if len(results) == 0:
-        shutil.rmtree(base_dir, ignore_errors=True)
+        # shutil.rmtree(base_dir, ignore_errors=True)
         raise ValueError("All FASTA records failed. Check the logs above for details.")
 
     if len(failed) > 0:
         print(f"{len(failed)} of {total} FASTA record(s) failed:")
         for record_id, workdir in failed:
             print(f"- '{record_id}': Partial results kept at '{workdir}'")
-        try:
-            os.rmdir(base_dir)
-        except OSError:
-            pass
 
     print("Merging results from all records")
 
