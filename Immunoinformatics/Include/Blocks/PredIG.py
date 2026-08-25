@@ -45,7 +45,7 @@ input_yaml_variable = PluginVariable(
     name="Input YAML",
     description="Input configuration as a single yaml file. Overrides 'Setup' button.",
     type=VariableTypes.FILE,
-    allowedValues=["yaml"]
+    allowedValues=["yaml"],
 )
 
 # ==========================#
@@ -302,10 +302,14 @@ def _run_fasta_jobs(common: Dict[str, Any], input_text: str):
             os.makedirs(job["workdir"], exist_ok=True)
             results.append(_run_fasta_job(job))
             job["ok"] = True
-            print(f"[{position + 1}/{total}] Record '{record_id}' finished successfully")
+            print(
+                f"[{position + 1}/{total}] Record '{record_id}' finished successfully"
+            )
         except Exception as e:
             failed.append((record_id, job["workdir"], str(e)))
-            print(f"[{position + 1}/{total}] Record '{record_id}' failed and was skipped: {e}")
+            print(
+                f"[{position + 1}/{total}] Record '{record_id}' failed and was skipped: {e}"
+            )
 
     for job in jobs:
         if job["ok"]:
@@ -532,7 +536,9 @@ def _submit_slurm_jobs(block: PluginBlock, common: Dict[str, Any], input_text: s
 
         local_scripts.append(script_path)
 
-    print(f"Submitting {len(batches)} Slurm job(s) with a batch size of {batch_size} record(s)")
+    print(
+        f"Submitting {len(batches)} Slurm job(s) with a batch size of {batch_size} record(s)"
+    )
 
     # Send the folder with the inputs and the runner to the remote if needed
     remote_base_dir = None
@@ -613,10 +619,14 @@ def collectSlurmResults(block: PluginBlock):
         if os.path.isfile(output_csv):
             results.append(pd.read_csv(output_csv))
             shutil.rmtree(workdir, ignore_errors=True)
-            print(f"[{position + 1}/{total}] Record '{record_id}' finished successfully")
+            print(
+                f"[{position + 1}/{total}] Record '{record_id}' finished successfully"
+            )
         else:
             failed.append((record_id, workdir))
-            print(f"[{position + 1}/{total}] Record '{record_id}' failed and was skipped")
+            print(
+                f"[{position + 1}/{total}] Record '{record_id}' failed and was skipped"
+            )
             log_tail = _slurm_log_tail(workdir)
             if log_tail:
                 print(log_tail)
@@ -1030,7 +1040,12 @@ predigBlock = SlurmBlock(
     initialAction=runPredIG,
     finalAction=collectSlurmResults,
     failOnSlurmError=False,
-    variables=[setup_predig_variable, useSlurmVariable, slurmScriptVariable],
+    variables=[
+        setup_predig_variable,
+        useSlurmVariable,
+        slurmScriptVariable,
+        slurmBatchSizeVariable,
+    ],
     # variables=[
     #     seedVar,
     #     modelVar,
