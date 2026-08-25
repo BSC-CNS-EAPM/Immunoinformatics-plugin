@@ -217,6 +217,13 @@ def _run_single(workdir: str) -> None:
     with open(job_path, "r", encoding="utf-8") as f:
         job = json.load(f)
 
+    # The plugin modules (e.g. 'utils') live in the 'Include' directory of the
+    # plugin. It is passed through the job configuration and added to the path
+    # so 'from utils import ...' resolves on the compute node.
+    plugin_include_dir = job.get("plugin_include_dir")
+    if plugin_include_dir:
+        sys.path.insert(0, plugin_include_dir)
+
     # The job runs inside the given workdir (relative paths are resolved from there)
     job["workdir"] = os.path.abspath(workdir)
 
@@ -235,7 +242,9 @@ def main(workdirs: List[str]) -> int:
     fail. Returns 0 if all succeeded, 1 otherwise.
     """
 
-    # Make sure the plugin utils module can be imported when running standalone
+    # Each record adds its inherited plugin include dir to the path before
+    # running (see _run_single). Keep a fallback so the script itself can be
+    # resolved when the job config is missing.
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
     failed = []

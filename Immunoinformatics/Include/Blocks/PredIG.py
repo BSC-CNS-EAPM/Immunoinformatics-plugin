@@ -491,6 +491,11 @@ def _submit_slurm_jobs(block: PluginBlock, common: Dict[str, Any], input_text: s
 
     record_infos = []
 
+    # The plugin modules (e.g. 'utils') live in the 'Include' directory, which
+    # is added to the Python path by the job runner so 'from utils import ...'
+    # works when the job runs on the cluster.
+    plugin_include_dir = os.path.join(block.pluginDir, "Include")
+
     for index, (header, sequence) in enumerate(records):
         record_id = _record_id(header)
         dirname = f"record_{index}"
@@ -499,6 +504,7 @@ def _submit_slurm_jobs(block: PluginBlock, common: Dict[str, Any], input_text: s
 
         job = {
             **common,
+            "plugin_include_dir": plugin_include_dir,
             "record_id": record_id,
             "fasta_text": f">{header}\n{sequence}\n",
             "workdir": ".",
