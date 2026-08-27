@@ -17,6 +17,10 @@ def create_plugin():
 
     immunoPlugin.addPage(setup_predig_page)
 
+    from Pages.setup_tcoarse import setup_tcoarse_page
+
+    immunoPlugin.addPage(setup_tcoarse_page)
+
     # ========== Blocks ========== #
     from Blocks.PredIG import predigBlock  # type: ignore
 
@@ -59,8 +63,10 @@ def create_plugin():
     from Blocks.TCoaRse.QualityTier import qualityTierBlock  # type: ignore
     from Blocks.TCoaRse.Similarities import similaritiesBlock  # type: ignore
     from Blocks.TCoaRse.StructureMetadata import structureMetadataBlock  # type: ignore
+    from Blocks.TCoaRse.TCoaRsePipeline import tcoarsePipelineBlock  # type: ignore
 
     for tcoarseBlock in [
+        tcoarsePipelineBlock,
         af3OutputsBlock,
         qualityMetricsBlock,
         qualityTierBlock,

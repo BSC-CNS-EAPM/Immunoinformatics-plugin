@@ -143,21 +143,33 @@ async function getDataFromHorus() {
   }
 }
 
+/**
+ * The heading of the results page.
+ *
+ * The page is shared by every block that shows a table, so the title comes
+ * from the block (`storeExtensionResults(data={"title": ...})`) instead of
+ * being hardcoded. The last word is rendered plainly and the rest in the
+ * gradient, so "TCoaRse predictions" reads like "PredIG Results" did.
+ */
 function Welcome() {
+  const title = (window.extensionData?.["title"] as string) || "PredIG Results";
+
+  const words = title.trim().split(/\s+/);
+  const lead = words.slice(0, -1).join(" ");
+  const tail = words.length > 1 ? words[words.length - 1] : "";
+
   return (
-    <>
-      <Title className={classes.title} ta="center" mt={100}>
-        <Text
-          inherit
-          variant="gradient"
-          component="span"
-          gradient={{ from: "purple", to: "yellow" }}
-        >
-          PredIG
-        </Text>{" "}
-        Results
-      </Title>
-    </>
+    <Title className={classes.title} ta="center" mt={100}>
+      <Text
+        inherit
+        variant="gradient"
+        component="span"
+        gradient={{ from: "purple", to: "yellow" }}
+      >
+        {lead || title}
+      </Text>
+      {tail ? ` ${tail}` : ""}
+    </Title>
   );
 }
 
@@ -167,7 +179,10 @@ function downloadFile(fullSimulation: boolean) {
   const a = document.createElement("a");
 
   a.href = url;
-  a.download = `predig_results.${fullSimulation ? "zip" : "csv"}`;
+  const title = (window.extensionData?.["title"] as string) || "predig results";
+  const base = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
+
+  a.download = `${base}.${fullSimulation ? "zip" : "csv"}`;
 
   a.click();
 

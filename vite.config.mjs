@@ -18,6 +18,10 @@ export default defineConfig({
         target: "http://127.0.0.1:3123/plugins/pages/immuno.results/",
         changeOrigin: true,
       },
+      "/tcoarse": {
+        target: "http://127.0.0.1:3123/plugins/pages/immuno.tcoarse/",
+        changeOrigin: true,
+      },
     },
   },
   build: {
@@ -27,6 +31,7 @@ export default defineConfig({
       input: {
         index: resolve(__dirname, "index.html"),
         results: resolve(__dirname, "results.html"),
+        tcoarse: resolve(__dirname, "tcoarse.html"),
       },
     },
   },

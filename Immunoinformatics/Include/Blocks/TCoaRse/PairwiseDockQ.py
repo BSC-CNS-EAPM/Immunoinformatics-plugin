@@ -4,11 +4,12 @@ Pairwise DockQ between the models of the same complex.
 Port of the `pairwise_dockq` process of tcoarse_prediction.nf.
 """
 
-import shlex
 
 from HorusAPI import PluginVariable, SlurmBlock, VariableTypes
 
 from slurm_utils import BSC_JOB_VARIABLES  # type: ignore
+from tcoarse_steps import pairwise_dockq_command  # type: ignore
+
 from tcoarse_utils import (  # type: ignore
     TCOARSE_CATEGORY,
     TCOARSE_COLOR,
@@ -17,9 +18,7 @@ from tcoarse_utils import (  # type: ignore
     finish,
     job_cpus,
     launch,
-    python_exec,
     required_input,
-    script_path,
     stage,
 )
 
@@ -56,12 +55,7 @@ def initial_pairwise_dockq(block: SlurmBlock):
 
     dockq_csv = f"{prefix}_pairwise_dockq.csv"
 
-    command = (
-        f"{python_exec(block)} {shlex.quote(script_path(block, 'pw_sim.py'))}"
-        f" --folder {pdb_dir}"
-        f" --output {dockq_csv}"
-        f" --workers {job_cpus(block, 8)}"
-    )
+    command = pairwise_dockq_command(block, pdb_dir, dockq_csv, job_cpus(block, 8))
 
     block.extraData["pairwise_dockq_csv"] = dockq_csv
 

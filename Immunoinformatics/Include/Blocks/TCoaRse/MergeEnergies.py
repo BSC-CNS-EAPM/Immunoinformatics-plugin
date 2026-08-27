@@ -5,11 +5,12 @@ feature table used by the predictors.
 Port of the `merge_energies` process of tcoarse_prediction.nf.
 """
 
-import shlex
 
 from HorusAPI import PluginVariable, SlurmBlock, VariableTypes
 
 from slurm_utils import BSC_JOB_VARIABLES  # type: ignore
+from tcoarse_steps import merge_energies_command  # type: ignore
+
 from tcoarse_utils import (  # type: ignore
     TCOARSE_CATEGORY,
     TCOARSE_COLOR,
@@ -17,9 +18,7 @@ from tcoarse_utils import (  # type: ignore
     ensure_produced,
     finish,
     launch,
-    python_exec,
     required_input,
-    script_path,
     stage,
 )
 
@@ -90,19 +89,19 @@ def initial_merge_energies(block: SlurmBlock):
     prefix = output_prefix(block)
     merged_csv = f"{prefix}_tcoarse_pydock_energies.csv"
 
-    command = (
-        f"{python_exec(block)} {shlex.quote(script_path(block, 'merge_energies.py'))}"
-        f" -tcoarse {energies_csv}"
-        f" -metadata {metadata_csv}"
-        f" -tar {pydock_tar}"
-        f" -o {merged_csv}"
-    )
-
     metrics_csv = block.inputs.get(metrics_csv_variable.id)
     if metrics_csv:
         metrics_csv = stage(str(metrics_csv))
         uploads.append(metrics_csv)
-        command += f" -metrics {metrics_csv}"
+
+    command = merge_energies_command(
+        block,
+        energies_csv,
+        metadata_csv,
+        pydock_tar,
+        merged_csv,
+        str(metrics_csv) if metrics_csv else None,
+    )
 
     block.extraData["merged_csv"] = merged_csv
 

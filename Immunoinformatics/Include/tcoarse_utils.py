@@ -24,6 +24,7 @@ absolute path there.
 
 import os
 import re
+import shlex
 import shutil
 import typing
 
@@ -104,6 +105,22 @@ def python_exec(block: PluginBlock) -> str:
     The python interpreter of the TCoaRse environment.
     """
     return _config(block, tcoarse_python_variable) or "python"
+
+
+def _python_bin_dir(block: PluginBlock) -> typing.Optional[str]:
+    """
+    The folder holding the configured interpreter, when it is an absolute path.
+
+    This is the `bin/` of the TCoaRse environment, where the console entry
+    points of its dependencies live. Returns None for a bare name such as
+    "python", which is resolved through PATH and says nothing about a folder.
+    """
+    interpreter = python_exec(block)
+
+    if not os.path.isabs(interpreter):
+        return None
+
+    return os.path.dirname(interpreter)
 
 
 def conda_env(block: PluginBlock) -> typing.Optional[str]:
@@ -340,6 +357,18 @@ def launch(
     """
     from slurm_utils import launchCalculationAction  # type: ignore
 
+    jobExports = list(exports or [])
+
+    binDir = _python_bin_dir(block)
+    if binDir:
+        # The scripts of the pipeline shell out to the console entry points that
+        # live next to the interpreter (pdb_chain, pdb_reres... from pdb-tools),
+        # by bare name. Running the interpreter by absolute path is not enough:
+        # the job would have to activate the environment for those to resolve,
+        # and a local run never does (the local script is a bare `sh` script, so
+        # the configured conda environment only ever applies on the cluster).
+        jobExports.append(f"PATH={shlex.quote(binDir)}:$PATH")
+
     launchCalculationAction(
         block,
         [command],
@@ -347,7 +376,7 @@ def launch(
         uploadFolders=list(upload or []),
         condaEnv=conda_env(block),
         modules=cluster_modules(block),
-        exports=exports,
+        exports=jobExports,
     )
 
 
@@ -390,6 +419,9 @@ def show_results(block: PluginBlock, csv_path: str, title: str) -> None:
     Extensions().storeExtensionResults(
         "immuno",
         "results",
-        data={"csv": safe_path},
+        # The title travels in the data as well: the results page renders its
+        # heading from it, so that the shared page does not announce PredIG
+        # when it is showing a TCoaRse table.
+        data={"csv": safe_path, "title": title},
         title=title,
     )

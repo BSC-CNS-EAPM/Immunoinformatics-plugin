@@ -4,11 +4,12 @@ Structure/energy based TCoaRse predictor.
 Port of the `predictor_tcoarse` process of tcoarse_prediction.nf.
 """
 
-import shlex
 
 from HorusAPI import PluginVariable, SlurmBlock, VariableTypes
 
 from slurm_utils import BSC_JOB_VARIABLES  # type: ignore
+from tcoarse_steps import predictor_tcoarse_command  # type: ignore
+
 from tcoarse_utils import (  # type: ignore
     TCOARSE_CATEGORY,
     TCOARSE_COLOR,
@@ -16,9 +17,7 @@ from tcoarse_utils import (  # type: ignore
     ensure_produced,
     finish,
     launch,
-    python_exec,
     required_input,
-    script_path,
     show_results,
     stage,
     tcoarse_model,
@@ -80,12 +79,7 @@ def initial_predictor_tcoarse(block: SlurmBlock):
     predictions = f"{prefix}_tcoarse_predictions.csv"
     model = variable_or(block, model_variable, None) or tcoarse_model(block)
 
-    command = (
-        f"{python_exec(block)} {shlex.quote(script_path(block, 'predictor_tcoarse.py'))}"
-        f" -df {merged_csv}"
-        f" -m {shlex.quote(str(model))}"
-        f" -out {predictions}"
-    )
+    command = predictor_tcoarse_command(block, merged_csv, predictions, str(model))
 
     block.extraData["tcoarse_predictions_csv"] = predictions
 

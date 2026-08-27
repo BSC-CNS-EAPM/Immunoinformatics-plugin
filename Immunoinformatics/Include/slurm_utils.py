@@ -175,31 +175,87 @@ def setup_bsc_calculations_based_on_horus_remote(
 
 
 HOOK_SCRIPT = """
+# Launch every job in the background, remembering its pid. The pid is needed to
+# recover the real exit code later: `$?` straight after `cmd &` is the status of
+# backgrounding the job, which is always 0, never the status of the job itself.
+# Each job writes to its own .out/.err: `${script%.*}` strips back to
+# "calculation_script" for every one of them, so they would all share one file.
+pids=""
 for script in calculation_script.sh_?; do
-    sh "$script" > "${script%.*}.out" 2> "${script%.*}.err" &
-    exit_code=$?
+    sh "$script" > "$script.out" 2> "$script.err" &
+    pids="$pids $!:$script"
 done
 
-# Wait for all background processes to finish
-wait
+failed=0
+for entry in $pids; do
+    pid="${entry%%:*}"
+    script="${entry#*:}"
 
-if [ $exit_code -ne 0 ]; then
-    echo "Error: Script $script failed with exit code $exit_code" >&2
+    wait "$pid"
+    code=$?
+
+    # Only the exit code decides whether a job failed. Output on stderr does not
+    # mean failure: well behaved programs write progress bars and warnings there
+    # (tqdm does it by default), so failing on a non-empty .err rejects jobs that
+    # completed perfectly well.
+    if [ "$code" -ne 0 ]; then
+        failed=1
+        echo "Error: Script $script failed with exit code $code" >&2
+        if [ -s "$script.err" ]; then
+            cat "$script.err" >&2
+        fi
+    fi
+done
+
+if [ "$failed" -ne 0 ]; then
     exit 1
 fi
-
-# Check if the .err file is empty in order to determine
-# if the script ran successfully
-if [ -s "${script%.*}.err" ]; then
-    echo "Error: Script $script failed with errors:" >&2
-    cat "${script%.*}.err" >&2
-    exit 1
-fi
-
 
 echo "All scripts completed successfully."
 
 """
+
+
+def _isProgressBar(line: str) -> bool:
+    """
+    Whether a stderr line is a progress bar rather than an error.
+
+    tqdm writes its bars to stderr and redraws them with carriage returns, so a
+    single line can hold several rendered bars. They all carry the "NN%|" marker.
+    """
+    return "%|" in line
+
+
+def _summarizeError(errLines: typing.List[str], returncode: int, maxLines: int = 20) -> str:
+    """
+    Build the exception message of a failed job out of its stderr.
+
+    Progress bars are dropped, because the last line of a failed run is usually
+    a finished bar and reporting only that hides the real error. Repeated lines
+    are collapsed: a command that fails inside a loop reports the same message
+    once per iteration.
+    """
+    meaningful = [line for line in errLines if not _isProgressBar(line)]
+
+    # If the job only ever wrote progress bars, they are all we have to report
+    if not meaningful:
+        meaningful = errLines
+
+    if not meaningful:
+        return f"The job failed with exit code {returncode} and produced no error output"
+
+    # Collapse repeated messages, keeping the order they were emitted in
+    counts: typing.Dict[str, int] = {}
+    for line in meaningful:
+        counts[line] = counts.get(line, 0) + 1
+
+    summary = [line if n == 1 else f"{line}  (x{n})" for line, n in counts.items()]
+
+    if len(summary) > maxLines:
+        hidden = len(summary) - maxLines
+        summary = summary[:maxLines] + [f"... and {hidden} more distinct error lines"]
+
+    return "\n".join([f"The job failed with exit code {returncode}:"] + summary)
 
 
 def launchCalculationAction(
@@ -272,8 +328,13 @@ def launchCalculationAction(
         with open(scriptName, "w") as f:
             f.write("#!/bin/sh\n")
 
-            for key, value in environmentListValues.items():
-                f.write(f"export {key}={value}\n")
+            # All of jobExports, not just the block's environment variables: the
+            # exports requested by the caller are the only way a local run can
+            # set up its environment, since it never activates `condaEnv`. The
+            # block's own variables come last in jobExports, so a value set in
+            # the block still overrides one the caller asked for.
+            for export in jobExports:
+                f.write(f"export {export}\n")
 
             f.write(HOOK_SCRIPT)
 
@@ -369,19 +430,24 @@ def launchCalculationAction(
                     if strippedOut != "":
                         print(strippedOut)
 
-                # Print the error
-                strippedErr = ""
+                # Print the error.
+                # Every line is kept, not just the last one: progress bars are
+                # written to stderr (tqdm does it by default), so the last line
+                # is usually a finished progress bar and reporting only that
+                # hides the real error.
+                errLines: typing.List[str] = []
                 if p.stderr:
                     for line in p.stderr:
                         strippedErr = line.decode("utf-8").strip()
                         if strippedErr != "":
                             print(strippedErr)
+                            errLines.append(strippedErr)
 
                 # Wait for the process to finish
                 p.wait()
 
                 if p.returncode != 0:
-                    raise Exception(strippedErr)
+                    raise Exception(_summarizeError(errLines, p.returncode))
         finally:
             os.environ = oldEnv
 

@@ -4,11 +4,12 @@ Extract the TCR / peptide / MHC sequences and annotations from the structures.
 Port of the `metadata_from_str` process of tcoarse_prediction.nf.
 """
 
-import shlex
 
 from HorusAPI import PluginVariable, SlurmBlock, VariableTypes
 
 from slurm_utils import BSC_JOB_VARIABLES  # type: ignore
+from tcoarse_steps import structure_metadata_command  # type: ignore
+
 from tcoarse_utils import (  # type: ignore
     TCOARSE_CATEGORY,
     TCOARSE_COLOR,
@@ -16,9 +17,7 @@ from tcoarse_utils import (  # type: ignore
     ensure_produced,
     finish,
     launch,
-    python_exec,
     required_input,
-    script_path,
     stage,
 )
 
@@ -55,11 +54,7 @@ def initial_structure_metadata(block: SlurmBlock):
 
     metadata_csv = f"{prefix}_metadata.csv"
 
-    command = (
-        f"{python_exec(block)} {shlex.quote(script_path(block, 'metadata_from_str.py'))}"
-        f" {pdb_dir}"
-        f" -o {metadata_csv}"
-    )
+    command = structure_metadata_command(block, pdb_dir, metadata_csv)
 
     block.extraData["metadata_csv"] = metadata_csv
 

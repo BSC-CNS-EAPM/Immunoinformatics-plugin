@@ -4,11 +4,12 @@ Contact maps of the TCR-pMHC models.
 Port of the `contact_maps` process of tcoarse_prediction.nf.
 """
 
-import shlex
 
 from HorusAPI import PluginVariable, SlurmBlock, VariableTypes
 
 from slurm_utils import BSC_JOB_VARIABLES  # type: ignore
+from tcoarse_steps import contact_maps_command  # type: ignore
+
 from tcoarse_utils import (  # type: ignore
     TCOARSE_CATEGORY,
     TCOARSE_COLOR,
@@ -17,9 +18,7 @@ from tcoarse_utils import (  # type: ignore
     finish,
     job_cpus,
     launch,
-    python_exec,
     required_input,
-    script_path,
     stage,
     variable_or,
 )
@@ -78,16 +77,14 @@ def initial_contact_maps(block: SlurmBlock):
 
     cm_dir = f"{prefix}_cm"
 
-    command = (
-        f"{python_exec(block)} {shlex.quote(script_path(block, 'contact_maps.py'))}"
-        f" -pdb {pdb_dir}"
-        f" -out {cm_dir}"
-        f" -cm {shlex.quote(str(variable_or(block, chain_map_variable, 'D:E:C:B:A')))}"
-        f" -workers {job_cpus(block)}"
+    command = contact_maps_command(
+        block,
+        pdb_dir,
+        cm_dir,
+        str(variable_or(block, chain_map_variable, "D:E:C:B:A")),
+        job_cpus(block),
+        bool(variable_or(block, not_experimental_variable, True)),
     )
-
-    if variable_or(block, not_experimental_variable, True):
-        command += " -notexp"
 
     block.extraData["cm_dir"] = cm_dir
 

@@ -5,11 +5,12 @@ potentials.
 Port of the `energetic_scorer` process of tcoarse_prediction.nf.
 """
 
-import shlex
 
 from HorusAPI import PluginVariable, SlurmBlock, VariableTypes
 
 from slurm_utils import BSC_JOB_VARIABLES  # type: ignore
+from tcoarse_steps import energetic_scorer_command  # type: ignore
+
 from tcoarse_utils import (  # type: ignore
     TCOARSE_CATEGORY,
     TCOARSE_COLOR,
@@ -18,10 +19,7 @@ from tcoarse_utils import (  # type: ignore
     finish,
     job_cpus,
     launch,
-    potential_dir,
-    python_exec,
     required_input,
-    script_path,
     stage,
     variable_or,
 )
@@ -106,20 +104,17 @@ def initial_energetic_scorer(block: SlurmBlock):
 
     energies_csv = f"{prefix}_tcoarse_energies.csv"
 
-    command = (
-        f"{python_exec(block)} {shlex.quote(script_path(block, 'energetic_scorer.py'))}"
-        f" -pdb {pdb_dir}"
-        f" -cmd {cm_dir}"
-        f" -pot {shlex.quote(potential_dir(block))}"
-        f" -out {energies_csv}"
-        f" -chains {shlex.quote(str(variable_or(block, chain_map_variable, 'D:E:C:A:B')))}"
-        f" -t {int(variable_or(block, threshold_variable, 7))}"
-        f" -w {job_cpus(block)}"
-        f" -io {int(variable_or(block, io_workers_variable, 8))}"
+    command = energetic_scorer_command(
+        block,
+        pdb_dir,
+        cm_dir,
+        energies_csv,
+        str(variable_or(block, chain_map_variable, "D:E:C:A:B")),
+        int(variable_or(block, threshold_variable, 7)),
+        job_cpus(block),
+        int(variable_or(block, io_workers_variable, 8)),
+        bool(variable_or(block, not_experimental_variable, True)),
     )
-
-    if variable_or(block, not_experimental_variable, True):
-        command += " -notexp"
 
     block.extraData["energies_csv"] = energies_csv
 

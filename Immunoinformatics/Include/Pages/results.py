@@ -4,8 +4,8 @@ import typing
 
 results_page = PluginPage(
     id="results",
-    name="PredIG results",
-    description="View the PredIG results",
+    name="Results",
+    description="View the results of a block",
     html="results.html",  # The HTML file to load
     hidden=True,
 )

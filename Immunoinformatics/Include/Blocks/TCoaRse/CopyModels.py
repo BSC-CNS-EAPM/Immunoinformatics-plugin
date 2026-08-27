@@ -4,11 +4,12 @@ Gather the best AlphaFold3 models into a single folder of merged PDBs.
 Port of the `cp_models` process of tcoarse_prediction.nf.
 """
 
-import shlex
 
 from HorusAPI import PluginVariable, SlurmBlock, VariableTypes
 
 from slurm_utils import BSC_JOB_VARIABLES  # type: ignore
+from tcoarse_steps import copy_models_command  # type: ignore
+
 from tcoarse_utils import (  # type: ignore
     TCOARSE_CATEGORY,
     TCOARSE_COLOR,
@@ -17,9 +18,7 @@ from tcoarse_utils import (  # type: ignore
     finish,
     job_cpus,
     launch,
-    python_exec,
     required_input,
-    script_path,
 )
 
 # ==========================#
@@ -54,12 +53,7 @@ def initial_copy_models(block: SlurmBlock):
 
     pdb_dir = f"{prefix}_pdb"
 
-    command = (
-        f"{python_exec(block)} {shlex.quote(script_path(block, 'cp_models.py'))}"
-        f" {shlex.quote(af3_dir)}"
-        f" {pdb_dir}"
-        f" --workers {job_cpus(block, 4)}"
-    )
+    command = copy_models_command(block, af3_dir, pdb_dir, job_cpus(block, 4))
 
     block.extraData["pdb_dir"] = pdb_dir
 
