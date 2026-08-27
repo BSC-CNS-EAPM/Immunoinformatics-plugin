@@ -16,6 +16,13 @@ export type TCoaRseSettings = {
   chunk_size: number;
   pydock_modules: string;
   model: string;
+
+  /**
+   * The terms confirmations, kept with the rest of the settings so the flow
+   * records that they were given and for which run.
+   */
+  accepted_non_commercial: boolean;
+  accepted_af3_terms: boolean;
 };
 
 /**

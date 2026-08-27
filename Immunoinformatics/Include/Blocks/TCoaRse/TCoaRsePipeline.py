@@ -239,6 +239,26 @@ def _setting(
     return variable_or(block, variable, default)
 
 
+def _require_accepted_terms(block: SlurmBlock) -> None:
+    """
+    Refuse to run until the terms of use have been confirmed on the setup page.
+
+    TCoaRse scores AlphaFold3 output, whose terms restrict commercial use, so
+    the setup page asks the user to confirm that neither they nor their
+    organisation is a commercial entity and that their use of that output
+    complies with the applicable terms. Checking here as well as there is what
+    makes the confirmation binding: the block can otherwise be run straight
+    from the canvas, which never opens the page.
+    """
+    setup = _setup(block)
+
+    if not (setup.get("accepted_non_commercial") and setup.get("accepted_af3_terms")):
+        raise Exception(
+            "The terms of use have not been confirmed. Open 'Setup TCoaRse' on "
+            "the block, confirm both statements, and run the pipeline again."
+        )
+
+
 def _af3_dir(block: SlurmBlock) -> str:
     """
     The AF3 outputs folder, from the input socket or from the setup page.
@@ -292,6 +312,10 @@ def initial_tcoarse_pipeline(block: SlurmBlock):
     """
     Build the script of the whole pipeline and submit it as a single job.
     """
+
+    # First: everything below has side effects (the pyDock config is written
+    # into the run folder, then the job is submitted)
+    _require_accepted_terms(block)
 
     af3_dir = _af3_dir(block)
     prefix = output_prefix(block)
@@ -439,17 +463,11 @@ tcoarsePipelineBlock = SlurmBlock(
     initialAction=initial_tcoarse_pipeline,
     finalAction=final_tcoarse_pipeline,
     inputs=[af3_dir_variable],
-    variables=BSC_JOB_VARIABLES
-    + [
-        setup_tcoarse_variable,
-        chain_map_variable,
-        not_experimental_variable,
-        energy_threshold_variable,
-        io_workers_variable,
-        chunk_size_variable,
-        pydock_modules_variable,
-        model_variable,
-    ],
+    # Only the setup button and the job variables. The pipeline settings are
+    # configured on the setup page: the variables below still exist, and
+    # _setting() still reads them, so a flow that sets one by hand keeps
+    # working, but they do not clutter the block in the canvas.
+    variables=BSC_JOB_VARIABLES + [setup_tcoarse_variable],
     outputs=[
         predictions_output,
         merged_csv_output,

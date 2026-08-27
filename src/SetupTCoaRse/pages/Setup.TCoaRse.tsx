@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Accordion,
   Alert,
   Badge,
   Button,
   Card,
+  Checkbox,
   Container,
   Divider,
   FileInput,
@@ -29,6 +29,7 @@ import {
   IconCircleCheck,
   IconFolderOpen,
   IconInfoCircle,
+  IconLicense,
   IconPlayerPlay,
   IconUpload,
 } from "@tabler/icons-react";
@@ -58,6 +59,8 @@ const DEFAULTS: TCoaRseSettings = {
   chunk_size: 5000,
   pydock_modules: "bindEy",
   model: "",
+  accepted_non_commercial: false,
+  accepted_af3_terms: false,
 };
 
 /** Bytes as the closest readable unit, e.g. "412.3 MB". */
@@ -212,11 +215,42 @@ export function SetupTCoaRseMain() {
 
   const cancelUpload = () => uploadRequest.current?.abort();
 
+  /**
+   * The threshold is only meaningful with a model of your own: the pretrained
+   * one was fit on features built at the default. Clearing the model puts the
+   * threshold back, so a value set for a custom model is never left behind to
+   * be used silently with the pretrained one.
+   */
+  const setModel = (model: string) =>
+    setSettings((current) => ({
+      ...current,
+      model,
+      energy_threshold: model.trim()
+        ? current.energy_threshold
+        : DEFAULTS.energy_threshold,
+    }));
+
+  const hasCustomModel = Boolean(settings.model.trim());
+
   const busy = phase !== "idle";
   const percent = archive && archive.size ? (sent / archive.size) * 100 : 0;
 
   if (saved) {
-    return <ConfigurationSaved />;
+    return (
+      <ConfigurationSaved
+        accepted={{
+          nonCommercial: settings.accepted_non_commercial,
+          af3Terms: settings.accepted_af3_terms,
+        }}
+        setAccepted={(value) =>
+          setSettings((current) => ({
+            ...current,
+            accepted_non_commercial: value.nonCommercial,
+            accepted_af3_terms: value.af3Terms,
+          }))
+        }
+      />
+    );
   }
 
   return (
@@ -390,73 +424,35 @@ export function SetupTCoaRseMain() {
                 update("not_experimental", event.currentTarget.checked)
               }
             />
+
+            <TextInput
+              label="TCoaRse model"
+              description="Overrides the model set in the TCoaRse configuration."
+              placeholder="Optional"
+              value={settings.model}
+              onChange={(event) => setModel(event.currentTarget.value)}
+            />
+
+            <NumberInput
+              label="Contact threshold"
+              description={
+                hasCustomModel
+                  ? "Distance threshold of the energetic scorer, in angstrom."
+                  : `Fixed at ${DEFAULTS.energy_threshold} A: the pretrained model was trained on features built with it. Set a model of your own to change it.`
+              }
+              min={1}
+              disabled={!hasCustomModel}
+              value={settings.energy_threshold}
+              onChange={(value) =>
+                update(
+                  "energy_threshold",
+                  Number(value) || DEFAULTS.energy_threshold
+                )
+              }
+            />
           </Stack>
         </Card>
 
-        <Accordion variant="separated" radius="md">
-          <Accordion.Item value="advanced">
-            <Accordion.Control
-              icon={
-                <ThemeIcon variant="light" size="sm" color="gray">
-                  <IconAdjustments size={14} />
-                </ThemeIcon>
-              }
-            >
-              <Text fw={600}>Advanced</Text>
-              <Text size="xs" c="dimmed">
-                Thresholds, workers, pyDock chunking and the model override
-              </Text>
-            </Accordion.Control>
-            <Accordion.Panel>
-              <Stack gap="md">
-                <NumberInput
-                  label="Contact threshold"
-                  description="Distance threshold of the energetic scorer, in angstrom."
-                  min={1}
-                  value={settings.energy_threshold}
-                  onChange={(value) =>
-                    update("energy_threshold", Number(value) || 7)
-                  }
-                />
-                <NumberInput
-                  label="IO workers"
-                  description="Workers reading the contact maps."
-                  min={1}
-                  value={settings.io_workers}
-                  onChange={(value) => update("io_workers", Number(value) || 8)}
-                />
-                <NumberInput
-                  label="Complexes per chunk"
-                  description="Complexes scored by each pyDock chunk."
-                  min={1}
-                  value={settings.chunk_size}
-                  onChange={(value) =>
-                    update("chunk_size", Number(value) || 5000)
-                  }
-                />
-                <Textarea
-                  label="pyDock modules"
-                  description="One module per line."
-                  autosize
-                  minRows={2}
-                  value={settings.pydock_modules}
-                  onChange={(event) =>
-                    update("pydock_modules", event.currentTarget.value)
-                  }
-                />
-                <TextInput
-                  label="TCoaRse model"
-                  description="Overrides the model set in the TCoaRse configuration."
-                  placeholder="Optional"
-                  value={settings.model}
-                  onChange={(event) =>
-                    update("model", event.currentTarget.value)
-                  }
-                />
-              </Stack>
-            </Accordion.Panel>
-          </Accordion.Item>
-        </Accordion>
 
         <Divider />
 
@@ -480,7 +476,27 @@ export function SetupTCoaRseMain() {
   );
 }
 
-function ConfigurationSaved() {
+/**
+ * The screen shown once the configuration is saved.
+ *
+ * Running is gated behind two explicit confirmations rather than one generic
+ * "I accept the terms": the AlphaFold3 output terms restrict commercial use,
+ * so the user states that neither they nor their organisation is a commercial
+ * entity, and separately that their use of the AF3 output complies with the
+ * applicable terms. The wording also keeps TCoaRse described as what it is --
+ * a tool that scores structures that already exist, not one that predicts
+ * them -- since that distinction is what puts it outside the restriction on
+ * AlphaFold3-like structure prediction.
+ */
+function ConfigurationSaved({
+  accepted,
+  setAccepted,
+}: {
+  accepted: { nonCommercial: boolean; af3Terms: boolean };
+  setAccepted: (value: { nonCommercial: boolean; af3Terms: boolean }) => void;
+}) {
+  const canRun = accepted.nonCommercial && accepted.af3Terms;
+
   return (
     <Container my="lg">
       <Stack align="center" gap="lg" mt="xl">
@@ -495,8 +511,60 @@ function ConfigurationSaved() {
             The TCoaRse pipeline is ready to run.
           </Text>
         </Stack>
+
+        <Card withBorder radius="md" padding="md" w="100%">
+          <Group gap="xs" mb="sm">
+            <ThemeIcon variant="light" size="sm" color="orange">
+              <IconLicense size={14} />
+            </ThemeIcon>
+            <Text fw={600}>Terms of use</Text>
+          </Group>
+
+          <Text size="sm" c="dimmed" mb="md">
+            TCoaRse evaluates and scores TCR-pMHC structures that already
+            exist. It does not predict or generate structures. Its input is the
+            output of AlphaFold3, whose terms restrict how that output may be
+            used, so please confirm both points below before running.
+          </Text>
+
+          <Stack gap="sm">
+            <Checkbox
+              checked={accepted.nonCommercial}
+              onChange={(event) =>
+                setAccepted({
+                  ...accepted,
+                  nonCommercial: event.currentTarget.checked,
+                })
+              }
+              label={
+                <Text size="sm">
+                  I confirm that neither I nor my organisation is a commercial
+                  entity, and that this analysis is not carried out for
+                  commercial purposes.
+                </Text>
+              }
+            />
+            <Checkbox
+              checked={accepted.af3Terms}
+              onChange={(event) =>
+                setAccepted({
+                  ...accepted,
+                  af3Terms: event.currentTarget.checked,
+                })
+              }
+              label={
+                <Text size="sm">
+                  I confirm that my use of the AlphaFold3 output supplied to
+                  this pipeline complies with the terms applicable to it.
+                </Text>
+              }
+            />
+          </Stack>
+        </Card>
+
         <Button
           rightSection={<IconArrowUpRight size={16} />}
+          disabled={!canRun}
           onClick={async () => {
             const placedID = await window.horusVariable?.getVariable()?.placedID;
 
@@ -508,13 +576,12 @@ function ConfigurationSaved() {
         >
           Execute pipeline & close setup
         </Button>
-        <Alert icon={<IconInfoCircle />} color="blue" radius="md" variant="light">
-          You can either click the button above to run the pipeline and close
-          this setup tab, or close this tab and click the "Play" button on the
-          TCoaRse Pipeline block. Every intermediate output is kept in the flow
-          folder, and each step appends a line to the pipeline status file as it
-          completes.
-        </Alert>
+
+        {!canRun && (
+          <Text size="xs" c="dimmed" ta="center">
+            Confirm both statements above to run the pipeline.
+          </Text>
+        )}
       </Stack>
     </Container>
   );
