@@ -4,7 +4,11 @@
 # Simulation mode: 1 = FASTA, 2 = UNIPROT, 3 = RECOMBINANT
 simulation: 1
 
-# Raw contents of the input file (CSV/TSV for modes 2/3, FASTA for mode 1)
+# Path to the input file (CSV/TSV for modes 2/3, FASTA for mode 1)
+# You can specify an absolute or relative path to a file on disk:
+# input_file: /path/to/your/input_data.csv
+
+# Alternatively, you can paste raw contents directly using input_text:
 input_text: |
   >example_protein
   MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEKAVQVKVKALPDAQFEVVHSLAKWKR
