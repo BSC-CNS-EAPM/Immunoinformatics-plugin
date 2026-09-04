@@ -514,8 +514,10 @@ def runPredIG(block: PluginBlock):
     input_setup: Union[dict, None] = block.variables.get(setup_predig_variable.id, None)
     input_yaml = block.inputs.get(input_yaml_variable.id)
 
+    yaml_dir = None
     if input_yaml:
         # Override the input setup, obtain all values from input_yaml.
+        yaml_dir = os.path.dirname(os.path.abspath(input_yaml))
         with open(input_yaml, "r", encoding="utf-8") as f:
             input_setup = yaml.safe_load(f)
 
@@ -524,9 +526,27 @@ def runPredIG(block: PluginBlock):
             "No input setup was provided. Please click on the 'Configure' button and save the setup."
         )
 
+    input_file: Union[str, None] = input_setup.get("input_file") or input_setup.get("input_path")
     input_text: Union[str, None] = input_setup.get("input_text")
+
+    if input_file:
+        target_path = input_file
+        if not os.path.isabs(target_path) and yaml_dir:
+            candidate_path = os.path.join(yaml_dir, input_file)
+            if os.path.isfile(candidate_path):
+                target_path = candidate_path
+
+        if not os.path.isfile(target_path):
+            raise FileNotFoundError(
+                f"Input file specified in YAML not found: '{input_file}' "
+                f"(resolved path: '{os.path.abspath(target_path)}')"
+            )
+
+        with open(target_path, "r", encoding="utf-8") as f:
+            input_text = f.read()
+
     if input_text is None or input_text == "":
-        raise ValueError("No input CSV was provided.")
+        raise ValueError("No input CSV or input_file path was provided.")
     input_text = cast(str, input_text)
 
     simulation = input_setup.get("simulation")
