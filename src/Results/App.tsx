@@ -3,11 +3,15 @@ import classes from "../main.module.css";
 
 import {
   Alert,
+  Badge,
   Button,
-  Center,
   Group,
   Loader,
+  LoadingOverlay,
   MantineProvider,
+  Pagination,
+  Paper,
+  Select,
   Stack,
   Text,
   Title,
@@ -20,9 +24,10 @@ import { AgGridReact } from "ag-grid-react";
 import {
   QueryClient,
   QueryClientProvider,
+  keepPreviousData,
   useQuery,
 } from "@tanstack/react-query";
-import { IconDownload, IconInfoCircle } from "@tabler/icons-react";
+import { IconDownload, IconInfoCircle, IconTable } from "@tabler/icons-react";
 import { ColDef } from "ag-grid-community";
 import { useRef, useState } from "react";
 
@@ -48,36 +53,25 @@ declare global {
   }
 }
 
-type PredIGResult = {
-  NOAH: number;
-  TAP: number;
-  charge_peptide: number;
-  charge_tcr_contact: number;
-  epitope: string;
-  epitope_noah: string;
-  epitope_tapmap: string;
-  epitope_x: string;
-  epitope_y: string;
-  hla_allele: string;
-  hla_allele_noah: string;
-  hydroph_peptide: number;
-  hydroph_tcr_contact: number;
-  id: string;
-  mhcflurry_affinity: number;
-  mhcflurry_affinity_percentile: number;
-  mhcflurry_best_allele: string;
-  mhcflurry_presentation_percentile: number;
-  mhcflurry_presentation_score: number;
-  mhcflurry_processing_score: number;
-  mw_peptide: number;
-  mw_tcr_contact: number;
-  netcleave: number;
-  predig: number;
-  stab_peptide: number;
-  tcr_contact: number;
+type PredIGResult = Record<string, any>;
+
+type ResultsApiResponse = {
+  ok: boolean;
+  results: PredIGResult[];
+  columns: string[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  msg?: string;
 };
 
-function getURL(options?: { download?: boolean; fullSimulation?: boolean }) {
+function getURL(options?: {
+  download?: boolean;
+  fullSimulation?: boolean;
+  page?: number;
+  pageSize?: number;
+}) {
   let csvPath = "";
   let urlPath = "";
   const path =
@@ -114,13 +108,26 @@ function getURL(options?: { download?: boolean; fullSimulation?: boolean }) {
     url.searchParams.set("simulation", "true");
   }
 
+  if (options?.page) {
+    url.searchParams.set("page", options.page.toString());
+  }
+
+  if (options?.pageSize) {
+    url.searchParams.set("page_size", options.pageSize.toString());
+  }
 
   return url.toString();
 }
 
-async function getDataFromHorus() {
+async function getDataFromHorus({
+  page,
+  pageSize,
+}: {
+  page: number;
+  pageSize: number;
+}): Promise<ResultsApiResponse> {
   try {
-    const url = getURL();
+    const url = getURL({ page, pageSize });
     const response = await fetch(url);
 
     if (!response.ok) {
@@ -134,10 +141,7 @@ async function getDataFromHorus() {
       throw new Error(data.msg || "Unknown error");
     }
 
-    return data as {
-      results: PredIGResult[];
-      columns: string[];
-    };
+    return data as ResultsApiResponse;
   } catch (error) {
     throw error; // Re-throw to be caught by react-query
   }
@@ -146,7 +150,7 @@ async function getDataFromHorus() {
 function Welcome() {
   return (
     <>
-      <Title className={classes.title} ta="center" mt={100}>
+      <Title className={classes.title} ta="center" mt={60}>
         <Text
           inherit
           variant="gradient"
@@ -175,20 +179,25 @@ function downloadFile(fullSimulation: boolean) {
 }
 
 function PredIGResults() {
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(100);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["results"],
-    queryFn: getDataFromHorus,
+  const { data, isLoading, isFetching, isError, error } = useQuery({
+    queryKey: ["results", page, pageSize],
+    queryFn: () => getDataFromHorus({ page, pageSize }),
+    placeholderData: keepPreviousData,
   });
 
   const gridRef = useRef<AgGridReact>(null);
 
   if (isLoading) {
     return (
-      <Stack align="center">
-        Loading results...
-        <Loader color="blue" />
+      <Stack align="center" my={50}>
+        <Text size="lg" fw={500}>
+          Loading results...
+        </Text>
+        <Loader color="blue" type="dots" size="lg" />
       </Stack>
     );
   }
@@ -201,17 +210,32 @@ function PredIGResults() {
         title="Error"
         icon={<IconInfoCircle size={36} />}
       >
-        {isError ? error.message : "No data found"}
+        {isError ? (error as Error).message : "No data found"}
       </Alert>
     );
   }
 
+  const total = data.total ?? data.results.length;
+  const totalPages = data.total_pages ?? 1;
+  const startRow = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endRow = Math.min(page * pageSize, total);
+
   const colDef: ColDef[] = data.columns.map((col) => {
     return {
       filter: true,
+      sortable: true,
+      resizable: true,
       field: col,
-      header: prettifyName(col),
       headerName: prettifyName(col),
+      valueFormatter: (params) => {
+        if (typeof params.value === "number") {
+          if (Number.isInteger(params.value)) {
+            return params.value.toString();
+          }
+          return params.value.toFixed(4);
+        }
+        return params.value;
+      },
     };
   });
 
@@ -225,52 +249,140 @@ function PredIGResults() {
     }
   }
 
+  const handlePageSizeChange = (val: string | null) => {
+    if (val) {
+      const newSize = Number(val);
+      setPageSize(newSize);
+      setPage(1);
+    }
+  };
+
   return (
-    <Stack w="100%">
-      <Group gap={20} align="center" justify="center">
-        <Button
-          w={200}
-          leftSection={
-            isDownloading ? <Loader color="black" /> : <IconDownload />
-          }
-          onClick={() => download(false)}
-        >
-          Download CSV
-        </Button>
-        <Button
-          w={250}
-          leftSection={
-            isDownloading ? <Loader color="black" /> : <IconDownload />
-          }
-          onClick={() => download(true)}
-        >
-          Download simulation
-        </Button>
+    <Stack w="100%" gap="md" px={20} pb={40}>
+      <Group justify="space-between" align="center" wrap="wrap">
+        <Group gap="sm">
+          <Badge variant="light" color="blue" size="lg" leftSection={<IconTable size={14} />}>
+            Total: {total.toLocaleString()} rows
+          </Badge>
+          {isFetching && <Loader size="xs" color="blue" />}
+        </Group>
+
+        <Group gap="md">
+          <Button
+            variant="outline"
+            leftSection={
+              isDownloading ? <Loader color="blue" size="sm" /> : <IconDownload size={18} />
+            }
+            onClick={() => download(false)}
+          >
+            Download CSV
+          </Button>
+          <Button
+            leftSection={
+              isDownloading ? <Loader color="white" size="sm" /> : <IconDownload size={18} />
+            }
+            onClick={() => download(true)}
+          >
+            Download simulation
+          </Button>
+        </Group>
       </Group>
-      <div
-        className="ag-theme-quartz" // applying the Data Grid theme
-        style={{
-          minHeight: "10px",
-          width: "100%",
-          overflow: "hidden",
-          padding: 20,
-        }} // the Data Grid will fill the size of the parent container
-      >
-        <AgGridReact
-          ref={gridRef}
-          rowData={data.results}
-          columnDefs={colDef}
-          domLayout="autoHeight"
-          defaultColDef={{
-            flex: 1,
-            minWidth: 200,
+
+      {/* Grid container */}
+      <Paper pos="relative" radius="md" withBorder p={0} style={{ overflow: "hidden" }}>
+        <LoadingOverlay visible={isFetching && !isLoading} zIndex={1000} overlayProps={{ radius: "sm", blur: 1 }} />
+        <div
+          className="ag-theme-quartz"
+          style={{
+            height: "550px",
+            width: "100%",
           }}
-        />
-      </div>
+        >
+          <AgGridReact
+            ref={gridRef}
+            rowData={data.results}
+            columnDefs={colDef}
+            defaultColDef={{
+              flex: 1,
+              minWidth: 160,
+              sortable: true,
+              filter: true,
+              resizable: true,
+            }}
+          />
+        </div>
+      </Paper>
+
+      {/* Pagination Controls */}
+      <Paper radius="md" withBorder p="md">
+        <Group justify="space-between" align="center" wrap="wrap" gap="md">
+          <Text size="sm" c="dimmed">
+            {total > 0
+              ? `Showing ${startRow.toLocaleString()} - ${endRow.toLocaleString()} of ${total.toLocaleString()} entries`
+              : "No entries to display"}
+          </Text>
+
+          <Group gap="lg">
+            <Pagination
+              value={page}
+              onChange={setPage}
+              total={totalPages}
+              boundaries={1}
+              siblings={1}
+              size="sm"
+              withEdges
+            />
+
+            <Group gap="xs" align="center">
+              <Text size="sm" c="dimmed">
+                Rows per page:
+              </Text>
+              <Select
+                value={pageSize.toString()}
+                onChange={handlePageSizeChange}
+                data={["25", "50", "100", "250", "500", "1000"]}
+                w={90}
+                size="xs"
+                allowDeselect={false}
+              />
+            </Group>
+          </Group>
+        </Group>
+      </Paper>
     </Stack>
   );
 }
 
 function prettifyName(name: string) {
-  return name;
+  if (!name) return "";
+  const specialCases: Record<string, string> = {
+    predig: "PredIG",
+    tap: "TAP",
+    noah: "NOAH",
+    netcleave: "NetCleave",
+    id: "ID",
+    epitope: "Epitope",
+    hla_allele: "HLA Allele",
+    charge_peptide: "Charge (Peptide)",
+    charge_tcr_contact: "Charge (TCR Contact)",
+    hydroph_peptide: "Hydrophobicity (Peptide)",
+    hydroph_tcr_contact: "Hydrophobicity (TCR Contact)",
+    mw_peptide: "MW (Peptide)",
+    mw_tcr_contact: "MW (TCR Contact)",
+    stab_peptide: "Stability (Peptide)",
+    tcr_contact: "TCR Contact",
+    mhcflurry_affinity: "MHCflurry Affinity",
+    mhcflurry_affinity_percentile: "MHCflurry Affinity %",
+    mhcflurry_best_allele: "MHCflurry Best Allele",
+    mhcflurry_presentation_percentile: "MHCflurry Presentation %",
+    mhcflurry_presentation_score: "MHCflurry Presentation Score",
+    mhcflurry_processing_score: "MHCflurry Processing Score",
+  };
+  const lower = name.toLowerCase();
+  if (specialCases[lower]) {
+    return specialCases[lower];
+  }
+  return name
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
