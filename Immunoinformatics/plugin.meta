@@ -6,6 +6,7 @@
   "version": "0.0.0",
   "pluginFile": "Immunoinformatics.py",
   "dependencies": [
+    "pydantic>=2.0",
     "mhcflurry",
     "biopython==1.81",
     "pandas",
