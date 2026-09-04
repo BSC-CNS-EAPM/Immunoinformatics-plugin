@@ -10,4 +10,5 @@ dependencies = [
     "xgboost>=3.3.0",
     "pyyaml>=6.0",
     "pip>=26.2",
+    "pydantic>=2.0",
 ]

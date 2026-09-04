@@ -1,6 +1,8 @@
 import os
-from HorusAPI import PluginPage, PluginEndpoint
 import typing
+
+from HorusAPI import PluginEndpoint, PluginPage
+from pydantic import BaseModel, ValidationError, field_validator
 
 results_page = PluginPage(
     id="results",
@@ -11,9 +13,87 @@ results_page = PluginPage(
 )
 
 
+class CsvMeta(BaseModel):
+    """Cached column names / row count for a csv, sidecar-persisted next to it."""
+
+    mtime: float
+    size: int
+    columns: list[str]
+    total_rows: int
+
+
+class PaginationParams(BaseModel):
+    page: int = 1
+    page_size: int = 100
+
+    @field_validator("page", mode="before")
+    @classmethod
+    def _clamp_page(cls, v):
+        try:
+            return max(1, int(v))
+        except (TypeError, ValueError):
+            return 1
+
+    @field_validator("page_size", mode="before")
+    @classmethod
+    def _clamp_page_size(cls, v):
+        try:
+            return max(1, min(10000, int(v)))
+        except (TypeError, ValueError):
+            return 100
+
+
+class ResultsResponse(BaseModel):
+    ok: bool = True
+    results: list[dict]
+    columns: list[str]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+def _csv_meta_cache_path(full_csv: str) -> str:
+    return full_csv + ".pagemeta.json"
+
+
+def _load_csv_meta(full_csv: str, stat: "os.stat_result") -> typing.Optional[CsvMeta]:
+    """
+    Read the cached columns/row count for full_csv if a sidecar cache file
+    exists and still matches the file's mtime/size, else None.
+
+    Each request runs in its own forked subprocess (Server.PluginManager
+    SubprocessManager.subprocessCall), so an in-memory cache would not
+    survive between requests; the cache is persisted to disk instead.
+    """
+
+    cache_path = _csv_meta_cache_path(full_csv)
+    if not os.path.exists(cache_path):
+        return None
+
+    try:
+        with open(cache_path, "r") as f:
+            meta = CsvMeta.model_validate_json(f.read())
+    except (OSError, ValidationError):
+        return None
+
+    if meta.mtime != stat.st_mtime or meta.size != stat.st_size:
+        return None
+
+    return meta
+
+
+def _save_csv_meta(full_csv: str, meta: CsvMeta) -> None:
+    try:
+        with open(_csv_meta_cache_path(full_csv), "w") as f:
+            f.write(meta.model_dump_json())
+    except OSError:
+        pass
+
+
 def return_data():
 
-    from flask import request, Response, send_file, jsonify
+    from flask import Response, jsonify, request
 
     data: dict = request.args
 
@@ -42,18 +122,64 @@ def return_data():
     ):
         return Response("Results do not exist", status=400)
 
-    import pandas as pd
+    import math
+
     import numpy as np
+    import pandas as pd
 
     try:
-        df = pd.read_csv(full_csv)
+        stat = os.stat(full_csv)
+        meta = _load_csv_meta(full_csv, stat)
+        if meta is None:
+            # Read header only to get column names
+            columns = list(pd.read_csv(full_csv, nrows=0).columns)
 
-        # Replace all NAN values with None
-        df = df.replace({np.nan: None})
+            # Count total rows efficiently without loading entire file into memory
+            with open(full_csv, "rb") as f:
+                total_rows = max(0, sum(1 for line in f if line.strip()) - 1)
 
-        data_dict = df.to_dict(orient="records")
+            meta = CsvMeta(
+                mtime=stat.st_mtime,
+                size=stat.st_size,
+                columns=columns,
+                total_rows=total_rows,
+            )
+            _save_csv_meta(full_csv, meta)
 
-        return jsonify({"ok": True, "results": data_dict, "columns": list(df.columns)})
+        pagination = PaginationParams(
+            page=data.get("page", 1),
+            page_size=data.get("page_size", data.get("limit", 100)),
+        )
+
+        total_pages = (
+            math.ceil(meta.total_rows / pagination.page_size)
+            if meta.total_rows > 0
+            else 1
+        )
+        skip_count = (pagination.page - 1) * pagination.page_size
+
+        if meta.total_rows == 0 or skip_count >= meta.total_rows:
+            data_dict = []
+        else:
+            df = pd.read_csv(
+                full_csv,
+                skiprows=range(1, skip_count + 1),
+                nrows=pagination.page_size,
+            )
+            # Replace all NaN values with None
+            df = df.replace({np.nan: None})
+            data_dict = df.to_dict(orient="records")
+
+        response = ResultsResponse(
+            results=data_dict,
+            columns=meta.columns,
+            total=meta.total_rows,
+            page=pagination.page,
+            page_size=pagination.page_size,
+            total_pages=total_pages,
+        )
+
+        return jsonify(response.model_dump())
 
     except Exception as e:
         return Response(str(e), status=400)
@@ -67,7 +193,7 @@ results_page.addEndpoint(results_data_endpoint)
 
 
 def download_results():
-    from flask import request, Response, send_file, after_this_request
+    from flask import Response, after_this_request, request, send_file
 
     data: dict = request.args
 
