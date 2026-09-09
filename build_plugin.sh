@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 echo "Building plugin..."
@@ -7,7 +6,7 @@ echo "Building plugin..."
 
 npm run clean
 
-rm Immunoinformatics*.hp
+rm -f Immunoinformatics*.hp
 
 # Ask for the plugin version
 read -p "Plugin version: " version
