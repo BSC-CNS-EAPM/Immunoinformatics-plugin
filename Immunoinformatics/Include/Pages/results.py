@@ -66,6 +66,29 @@ results_data_endpoint = PluginEndpoint(
 results_page.addEndpoint(results_data_endpoint)
 
 
+def zip_folder(folder: str, destination: str, skip_folders: bool) -> None:
+    """
+    Compress `folder` into the `destination` zip file.
+
+    `skip_folders` keeps only the files sitting directly in the folder and
+    leaves its subfolders out. That is what makes the archive downloadable for
+    a TCoaRse run: the tables, the pyDock archive and the status file are a few
+    megabytes, while the intermediates next to them ('<prefix>_pdb' and
+    '<prefix>_cm', one file per model) can run to gigabytes.
+    """
+    import zipfile
+
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+        for root, folders, files in os.walk(folder):
+            if skip_folders:
+                # Emptied in place, which is how os.walk is told not to descend
+                folders[:] = []
+
+            for file in files:
+                path = os.path.join(root, file)
+                archive.write(path, os.path.relpath(path, folder))
+
+
 def download_results():
     from flask import request, Response, send_file, after_this_request
 
@@ -73,6 +96,7 @@ def download_results():
 
     csv: typing.Union[str, None] = data.get("csv")
     simulation: typing.Union[str, None] = data.get("simulation")
+    skip_folders: typing.Union[str, None] = data.get("skip_folders")
     name: typing.Union[str, None] = data.get("name")
 
     if not csv:
@@ -98,36 +122,28 @@ def download_results():
     ):
         return Response("CSV does not exist", status=400)
 
-    import pandas as pd
-
     download_name: typing.Union[str, None] = None
     if simulation:
         folder_to_download = os.path.dirname(full_csv)
         folder_name = os.path.basename(folder_to_download)
-        full_zip_path = os.path.join(os.path.dirname(folder_to_download), folder_name)
-        full_zip_path_with_extension = full_zip_path + ".zip"
-
-        # Compress the folder
-        if os.path.exists(full_zip_path_with_extension):
-            os.remove(full_zip_path_with_extension)
 
         import shutil
+        import tempfile
 
-        os.chdir(folder_to_download)
-        shutil.make_archive(
-            full_zip_path,
-            "zip",
-            root_dir=folder_to_download,
-        )
+        # Built in a temporary folder rather than next to the results one: the
+        # run folder stays as the flow left it, and two downloads of the same
+        # flow cannot overwrite each other's archive halfway through
+        temp_dir = tempfile.mkdtemp()
+        full_zip_path = os.path.join(temp_dir, folder_name + ".zip")
+
+        zip_folder(folder_to_download, full_zip_path, bool(skip_folders))
 
         download_name = name + ".zip" if name else None
 
-        full_zip_path = full_zip_path_with_extension
-
         @after_this_request
         def remove_file(response):
-            if os.path.exists(full_zip_path_with_extension):
-                os.remove(full_zip_path_with_extension)
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            return response
 
     else:
         # Download the csv

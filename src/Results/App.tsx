@@ -8,6 +8,7 @@ import {
   Group,
   Loader,
   MantineProvider,
+  Menu,
   Stack,
   Text,
   Title,
@@ -77,7 +78,11 @@ type PredIGResult = {
   tcr_contact: number;
 };
 
-function getURL(options?: { download?: boolean; fullSimulation?: boolean }) {
+function getURL(options?: {
+  download?: boolean;
+  fullSimulation?: boolean;
+  skipFolders?: boolean;
+}) {
   let csvPath = "";
   let urlPath = "";
   const path =
@@ -114,6 +119,12 @@ function getURL(options?: { download?: boolean; fullSimulation?: boolean }) {
     url.searchParams.set("simulation", "true");
   }
 
+  // Leaves the subfolders of the results folder out of the zip. For a TCoaRse
+  // run those are the intermediates ('<prefix>_pdb', '<prefix>_cm'), one file
+  // per model, which are what makes the full archive too big to download.
+  if (options?.skipFolders) {
+    url.searchParams.set("skip_folders", "true");
+  }
 
   return url.toString();
 }
@@ -173,14 +184,21 @@ function Welcome() {
   );
 }
 
-function downloadFile(fullSimulation: boolean) {
-  const url = getURL({ download: true, fullSimulation: fullSimulation });
+function downloadFile(fullSimulation: boolean, skipFolders = false) {
+  const url = getURL({
+    download: true,
+    fullSimulation: fullSimulation,
+    skipFolders: skipFolders,
+  });
 
   const a = document.createElement("a");
 
   a.href = url;
   const title = (window.extensionData?.["title"] as string) || "predig results";
-  const base = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  const base = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_");
 
   a.download = `${base}.${fullSimulation ? "zip" : "csv"}`;
 
@@ -230,11 +248,11 @@ function PredIGResults() {
     };
   });
 
-  function download(simulation: boolean) {
+  function download(simulation: boolean, skipFolders = false) {
     setIsDownloading(true);
 
     try {
-      downloadFile(simulation);
+      downloadFile(simulation, skipFolders);
     } finally {
       setIsDownloading(false);
     }
@@ -252,15 +270,33 @@ function PredIGResults() {
         >
           Download CSV
         </Button>
-        <Button
-          w={250}
-          leftSection={
-            isDownloading ? <Loader color="black" /> : <IconDownload />
-          }
-          onClick={() => download(true)}
-        >
-          Download simulation
-        </Button>
+        <Menu shadow="md" width={320} position="bottom">
+          <Menu.Target>
+            <Button
+              w={250}
+              leftSection={
+                isDownloading ? <Loader color="black" /> : <IconDownload />
+              }
+            >
+              Download simulation
+            </Button>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item onClick={() => download(true, true)}>
+              <Text size="sm">Results only</Text>
+              <Text size="xs" c="dimmed">
+                The files of the results folder, without its subfolders.
+              </Text>
+            </Menu.Item>
+            <Menu.Item onClick={() => download(true, false)}>
+              <Text size="sm">Everything</Text>
+              <Text size="xs" c="dimmed">
+                The whole folder. For a TCoaRse run this includes the models and
+                the contact maps, and can be very large.
+              </Text>
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
       </Group>
       <div
         className="ag-theme-quartz" // applying the Data Grid theme
