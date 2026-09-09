@@ -15,11 +15,21 @@ The 15 blocks, the configuration and the flow are documented in
 
 Quick start:
 
-1. *Settings > Plugins > Immunoinformatics > TCoaRse*: set the TCoaRse-nf
-   installation folder and the python executable of an environment that has its
-   dependencies (torch, transformers, DockQ, tcrdist, anarci...). The plugin
-   does not install them.
-2. Open the **TCoaRse** flow preset, select the AlphaFold3 outputs folder in the
+1. Build the environment the TCoaRse scripts run in. The plugin does not
+   install their dependencies (torch, transformers, DockQ, tcrdist, anarci...),
+   and TCoaRse-nf ships no environment file, so there is a snapshot of a
+   working one here:
+
+   ```bash
+   micromamba create -f Devtools/tcoarse-env.yml   # or: conda env create -f
+   ```
+
+   Read its header before using it on a cluster: it snapshots a CPU torch
+   install, and the machine running the jobs may already have a shared
+   environment to point at instead.
+2. *Settings > Plugins > Immunoinformatics > TCoaRse*: set the TCoaRse-nf
+   installation folder and the python executable of that environment.
+3. Open the **TCoaRse** flow preset, select the AlphaFold3 outputs folder in the
    *AF3 Outputs* block and run.
 
 ### Tests

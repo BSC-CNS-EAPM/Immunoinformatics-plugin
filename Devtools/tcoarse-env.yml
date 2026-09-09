@@ -1,0 +1,64 @@
+# The environment the TCoaRse blocks run their scripts in.
+#
+# This is the environment configured as "TCoaRse python executable" (or as the
+# "Cluster conda environment") in Settings > Plugins > Immunoinformatics >
+# TCoaRse. The plugin never imports any of it: the blocks build a command line
+# and submit it, so these are the dependencies of the TCoaRse-nf scripts, not
+# of the plugin.
+#
+# It lives here because TCoaRse-nf ships no environment file of its own, and
+# the plugin is what asks people to build the environment. It is a snapshot of
+# a working install rather than an upstream contract, so it will drift: if
+# TCoaRse-nf ever adopts an environment file, use that one and delete this.
+#
+#     micromamba create -f Devtools/tcoarse-env.yml   # or conda env create -f
+#
+# Two things to check against the machine that will run the jobs:
+#
+#   - torch is unpinned here, and the snapshot it comes from is a CPU build.
+#     The embeddings block loads the `cuda` module on the cluster, so a cluster
+#     environment most likely wants the CUDA build instead, installed the way
+#     that machine expects.
+#   - it reproduces a local install, not whatever BSC runs on MareNostrum. The
+#     cluster may already have a shared environment to point the config at.
+#
+# The pyDock Singularity image is not part of this: it is configured separately
+# ("pyDock Singularity image") and lives outside the environment.
+
+name: tcoarse
+
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  - python=3.10
+
+  # numpy stays below 2 because DockQ requires it (`numpy<2.0`), and it is
+  # pinned here so the solver settles it once rather than having pip downgrade
+  # the environment afterwards
+  - numpy<2
+
+  - biopython
+  - h5py
+  - joblib
+  - pandas
+  - pyyaml
+  - scikit-learn=1.5.2
+  - scipy
+  - tqdm
+  - xgboost
+
+  # anarci is a bioconda package and needs hmmer on the PATH
+  - anarci
+  - hmmer
+
+  - pip
+  - pip:
+      # Not on conda-forge, and each one is imported by the scripts: DockQ by
+      # similarities_af3.py, tcrdist by the similarity step, torch and
+      # transformers by the embeddings one
+      - dockq==2.1.3
+      - tcrdist3==0.3
+      - torch
+      - transformers==5.14.1
