@@ -470,12 +470,12 @@ tcoarsePipelineBlock = SlurmBlock(
     variables=BSC_JOB_VARIABLES + [setup_tcoarse_variable],
     outputs=[
         predictions_output,
-        merged_csv_output,
-        dockq_csv_output,
-        metadata_csv_output,
-        energies_csv_output,
-        pydock_tar_output,
-        pdb_dir_output,
+        # merged_csv_output,
+        # dockq_csv_output,
+        # metadata_csv_output,
+        # energies_csv_output,
+        # pydock_tar_output,
+        # pdb_dir_output,
     ],
     category="TCoaRse",
 )
