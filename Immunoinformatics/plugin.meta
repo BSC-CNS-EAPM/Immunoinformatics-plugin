@@ -11,7 +11,6 @@
     "biopython==1.81",
     "pandas",
     "matplotlib==3.8.3",
-    "pathlib",
     "tensorflow",
     "scikit_learn",
     "xgboost<3.1",
