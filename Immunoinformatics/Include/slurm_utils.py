@@ -469,7 +469,13 @@ def launchCalculationAction(
                 if p.returncode != 0:
                     raise Exception(_summarizeError(errLines, p.returncode))
         finally:
-            os.environ = oldEnv
+            # Put the values back into the mapping rather than rebinding the
+            # name: os.environ is not a plain dict, and assigning one leaves
+            # the process with a mapping that no longer reaches putenv(), so
+            # every later subprocess of Horus is started with a stale
+            # environment.
+            os.environ.clear()
+            os.environ.update(oldEnv)
 
 
 def downloadResultsAction(block: SlurmBlock):

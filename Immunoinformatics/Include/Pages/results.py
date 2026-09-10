@@ -192,6 +192,19 @@ results_data_endpoint = PluginEndpoint(
 results_page.addEndpoint(results_data_endpoint)
 
 
+def _is_true(value: typing.Union[str, None]) -> bool:
+    """
+    Whether a query string parameter asks for something.
+
+    Everything in a query string is a string, so the truthiness of the value
+    says only that the parameter was there: "false" and "0" are as true as
+    "true" is. The flags below travel as "true" when they are set and are
+    absent otherwise, and this keeps a client that spells one out as
+    "?simulation=false" from getting the opposite of what it asked for.
+    """
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
 def zip_folder(folder: str, destination: str, skip_folders: bool) -> None:
     """
     Compress `folder` into the `destination` zip file.
@@ -221,8 +234,8 @@ def download_results():
     data: dict = request.args
 
     csv: typing.Union[str, None] = data.get("csv")
-    simulation: typing.Union[str, None] = data.get("simulation")
-    skip_folders: typing.Union[str, None] = data.get("skip_folders")
+    simulation: bool = _is_true(data.get("simulation"))
+    skip_folders: bool = _is_true(data.get("skip_folders"))
     name: typing.Union[str, None] = data.get("name")
 
     if not csv:
@@ -262,7 +275,7 @@ def download_results():
         temp_dir = tempfile.mkdtemp()
         full_zip_path = os.path.join(temp_dir, folder_name + ".zip")
 
-        zip_folder(folder_to_download, full_zip_path, bool(skip_folders))
+        zip_folder(folder_to_download, full_zip_path, skip_folders)
 
         download_name = name + ".zip" if name else None
 

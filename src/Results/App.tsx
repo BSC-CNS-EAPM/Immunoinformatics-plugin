@@ -201,7 +201,15 @@ function downloadFile(fullSimulation: boolean, skipFolders = false) {
   // Named after whatever the page is showing, so a TCoaRse run does not come
   // down as predig_results.zip
   const title = (window.extensionData?.["title"] as string) || "predig results";
-  const base = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  // Trimmed of the underscores the substitution leaves at either end, and
+  // with a fallback: a title of only punctuation or non-ASCII would otherwise
+  // sanitize down to nothing and name the download ".zip"
+  const base =
+    title
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "results";
 
   a.download = `${base}.${fullSimulation ? "zip" : "csv"}`;
 
