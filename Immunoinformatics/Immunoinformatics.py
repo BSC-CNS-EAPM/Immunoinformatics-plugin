@@ -56,61 +56,61 @@ def create_plugin():
 
     immunoPlugin.addBlock(af3OutputsBlock)
 
-    # from Blocks.TCoaRse.QualityMetrics import qualityMetricsBlock  # type: ignore
+    from Blocks.TCoaRse.QualityMetrics import qualityMetricsBlock  # type: ignore
 
-    # immunoPlugin.addBlock(qualityMetricsBlock)
+    immunoPlugin.addBlock(qualityMetricsBlock)
 
-    # from Blocks.TCoaRse.QualityTier import qualityTierBlock  # type: ignore
+    from Blocks.TCoaRse.QualityTier import qualityTierBlock  # type: ignore
 
-    # immunoPlugin.addBlock(qualityTierBlock)
+    immunoPlugin.addBlock(qualityTierBlock)
 
-    # from Blocks.TCoaRse.CopyModels import copyModelsBlock  # type: ignore
+    from Blocks.TCoaRse.CopyModels import copyModelsBlock  # type: ignore
 
-    # immunoPlugin.addBlock(copyModelsBlock)
+    immunoPlugin.addBlock(copyModelsBlock)
 
-    # from Blocks.TCoaRse.StructureMetadata import structureMetadataBlock  # type: ignore
+    from Blocks.TCoaRse.StructureMetadata import structureMetadataBlock  # type: ignore
 
-    # immunoPlugin.addBlock(structureMetadataBlock)
+    immunoPlugin.addBlock(structureMetadataBlock)
 
-    # from Blocks.TCoaRse.Similarities import similaritiesBlock  # type: ignore
+    from Blocks.TCoaRse.Similarities import similaritiesBlock  # type: ignore
 
-    # immunoPlugin.addBlock(similaritiesBlock)
+    immunoPlugin.addBlock(similaritiesBlock)
 
-    # from Blocks.TCoaRse.Embeddings import embeddingsBlock  # type: ignore
+    from Blocks.TCoaRse.Embeddings import embeddingsBlock  # type: ignore
 
-    # immunoPlugin.addBlock(embeddingsBlock)
+    immunoPlugin.addBlock(embeddingsBlock)
 
-    # from Blocks.TCoaRse.PredictorESMC import predictorESMCBlock  # type: ignore
+    from Blocks.TCoaRse.PredictorESMC import predictorESMCBlock  # type: ignore
 
-    # immunoPlugin.addBlock(predictorESMCBlock)
+    immunoPlugin.addBlock(predictorESMCBlock)
 
-    # from Blocks.TCoaRse.PyDockEnergies import pydockEnergiesBlock  # type: ignore
+    from Blocks.TCoaRse.PyDockEnergies import pydockEnergiesBlock  # type: ignore
 
-    # immunoPlugin.addBlock(pydockEnergiesBlock)
+    immunoPlugin.addBlock(pydockEnergiesBlock)
 
-    # from Blocks.TCoaRse.ContactMaps import contactMapsBlock  # type: ignore
+    from Blocks.TCoaRse.ContactMaps import contactMapsBlock  # type: ignore
 
-    # immunoPlugin.addBlock(contactMapsBlock)
+    immunoPlugin.addBlock(contactMapsBlock)
 
-    # from Blocks.TCoaRse.PairwiseDockQ import pairwiseDockQBlock  # type: ignore
+    from Blocks.TCoaRse.PairwiseDockQ import pairwiseDockQBlock  # type: ignore
 
-    # immunoPlugin.addBlock(pairwiseDockQBlock)
+    immunoPlugin.addBlock(pairwiseDockQBlock)
 
-    # from Blocks.TCoaRse.EnergeticScorer import energeticScorerBlock  # type: ignore
+    from Blocks.TCoaRse.EnergeticScorer import energeticScorerBlock  # type: ignore
 
-    # immunoPlugin.addBlock(energeticScorerBlock)
+    immunoPlugin.addBlock(energeticScorerBlock)
 
-    # from Blocks.TCoaRse.MergeEnergies import mergeEnergiesBlock  # type: ignore
+    from Blocks.TCoaRse.MergeEnergies import mergeEnergiesBlock  # type: ignore
 
-    # immunoPlugin.addBlock(mergeEnergiesBlock)
+    immunoPlugin.addBlock(mergeEnergiesBlock)
 
-    # from Blocks.TCoaRse.PredictorTCoaRse import predictorTCoaRseBlock  # type: ignore
+    from Blocks.TCoaRse.PredictorTCoaRse import predictorTCoaRseBlock  # type: ignore
 
-    # immunoPlugin.addBlock(predictorTCoaRseBlock)
+    immunoPlugin.addBlock(predictorTCoaRseBlock)
 
-    # from Blocks.TCoaRse.PredictorBimodal import predictorBimodalBlock  # type: ignore
+    from Blocks.TCoaRse.PredictorBimodal import predictorBimodalBlock  # type: ignore
 
-    # immunoPlugin.addBlock(predictorBimodalBlock)
+    immunoPlugin.addBlock(predictorBimodalBlock)
 
     # ========== Configs ========== #
     from Configs.columns_to_delete import columns_to_delete_config
