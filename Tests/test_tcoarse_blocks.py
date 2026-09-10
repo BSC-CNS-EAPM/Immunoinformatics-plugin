@@ -722,6 +722,62 @@ def test_pipeline_publishes_only_the_declared_outputs():
     assert "merged_csv" not in block.outputs
 
 
+def test_pipeline_converts_the_chain_map_for_the_scorer():
+    """
+    contact_maps.py reads the chains as tcra:tcrb:peptide:b2m:mhc and
+    energetic_scorer.py as tcra:tcrb:peptide:mhc:b2m. The pipeline configures
+    both from one setting, so the scorer has to be handed the converted one:
+    with the contact-maps mapping it looks for the TCR-MHC and peptide-MHC
+    contacts on the B2M chain and reports zero for every model.
+    """
+    module = block_module("TCoaRsePipeline")
+
+    af3_dir = touch("af3_outputs", directory=True)
+    block = FakeBlock(
+        inputs={"af3_dir": af3_dir},
+        variables={"chain_map": "D:E:C:B:A"},
+        config=base_config(),
+        declared=["predictions"],
+    )
+    block.variables["setup_tcoarse"] = {
+        "accepted_non_commercial": True,
+        "accepted_af3_terms": True,
+    }
+
+    module.initial_tcoarse_pipeline(block)
+    command = block.command
+
+    assert "contact_maps.py" in command
+    assert "-cm D:E:C:B:A" in command
+
+    assert "energetic_scorer.py" in command
+    assert "-chains D:E:C:A:B" in command
+
+
+def test_pipeline_uploads_only_the_pydock_config():
+    """
+    The AF3 folder is used in place, by its absolute path on the machine that
+    runs the job, so uploading it transfers gigabytes that nothing reads.
+    """
+    module = block_module("TCoaRsePipeline")
+
+    af3_dir = touch("af3_outputs", directory=True)
+    block = FakeBlock(
+        inputs={"af3_dir": af3_dir},
+        config=base_config(),
+        declared=["predictions"],
+    )
+    block.variables["setup_tcoarse"] = {
+        "accepted_non_commercial": True,
+        "accepted_af3_terms": True,
+    }
+
+    module.initial_tcoarse_pipeline(block)
+
+    assert block.uploads == ["pydock_config.yaml"]
+    assert af3_dir not in block.uploads
+
+
 # ==========================#
 # Runner
 # ==========================#

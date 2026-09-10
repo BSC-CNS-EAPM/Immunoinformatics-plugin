@@ -198,6 +198,35 @@ def pairwise_dockq_command(
     )
 
 
+def scorer_chain_map(chain_map: str) -> str:
+    """
+    Turn a contact-maps chain mapping into the one the energetic scorer wants.
+
+    The two scripts read the same five chains in a different order, and each
+    one defaults to its own spelling of the same structure:
+
+        contact_maps.py     tcra:tcrb:peptide:b2m:mhc   (default D:E:C:B:A)
+        energetic_scorer.py tcra:tcrb:peptide:mhc:b2m   (default D:E:C:A:B)
+
+    The Nextflow pipeline never passed either flag, so both scripts fell back
+    to their own default and the difference stayed invisible. Anything that
+    configures the two together has to convert between them: handing the
+    scorer a contact-maps mapping swaps the MHC with the B2M, and every
+    TCR-MHC and peptide-MHC contact it looks for is then on a chain that holds
+    something else, which zeroes those features for every model.
+    """
+    chains = str(chain_map).split(":")
+
+    if len(chains) != 5:
+        raise Exception(
+            f"The chain map must have five chains (tcra:tcrb:peptide:b2m:mhc), "
+            f"got '{chain_map}'."
+        )
+
+    # Only the last two move
+    return ":".join(chains[:3] + [chains[4], chains[3]])
+
+
 def energetic_scorer_command(
     block: PluginBlock,
     pdb_dir: str,

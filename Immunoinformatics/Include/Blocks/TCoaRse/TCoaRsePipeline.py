@@ -46,6 +46,7 @@ from tcoarse_steps import (  # type: ignore
     parse_pydock_modules,
     predictor_tcoarse_command,
     pydock_command,
+    scorer_chain_map,
     structure_metadata_command,
     write_pydock_config,
 )
@@ -155,7 +156,11 @@ pdb_dir_output = PluginVariable(
 chain_map_variable = PluginVariable(
     id="chain_map",
     name="Chain map",
-    description="Chain mapping passed to the contact maps and the scorer.",
+    description=(
+        "Chain mapping, in the order contact_maps.py reads it "
+        "(TCRa:TCRb:peptide:B2M:MHC). It is converted for the energetic "
+        "scorer, which orders the last two the other way round."
+    ),
     type=VariableTypes.STRING,
     defaultValue="D:E:C:B:A",
 )
@@ -360,7 +365,10 @@ def initial_tcoarse_pipeline(block: SlurmBlock):
         pdb_dir,
         cm_dir,
         energies_csv,
-        chain_map,
+        # Contact maps and the scorer order the same five chains differently,
+        # so the mapping configured for the first has to be converted for the
+        # second
+        scorer_chain_map(chain_map),
         int(_setting(block, "energy_threshold", energy_threshold_variable, 7)),
         cpus,
         int(_setting(block, "io_workers", io_workers_variable, 8)),
@@ -410,7 +418,12 @@ def initial_tcoarse_pipeline(block: SlurmBlock):
     print(f"Running the TCoaRse pipeline on '{af3_dir}'")
     print(f"{total} steps: " + ", ".join(name for name, _ in steps))
 
-    launch(block, command, upload=[af3_dir, config])
+    # Only the pyDock config: it is written here and the job needs it. The AF3
+    # folder is deliberately not uploaded (see the tcoarse_utils docstring) --
+    # every command references it by its absolute path on the machine that runs
+    # the job, so sending a copy into the run folder costs the whole transfer
+    # and changes nothing about what is read.
+    launch(block, command, upload=[config])
 
 
 def final_tcoarse_pipeline(block: SlurmBlock):
