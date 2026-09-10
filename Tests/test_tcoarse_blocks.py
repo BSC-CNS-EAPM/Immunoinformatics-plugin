@@ -79,13 +79,18 @@ class FakeBlock:
     Minimal stand-in for a PluginBlock / SlurmBlock inside an action.
     """
 
-    def __init__(self, inputs=None, variables=None, config=None):
+    def __init__(self, inputs=None, variables=None, config=None, declared=None):
         self.inputs = inputs or {}
         self.variables = dict(BSC_DEFAULTS)
         self.variables.update(variables or {})
         self.config = config or {}
         self.extraData = {}
-        self.outputs = {}
+        # The output ids the block declares. None accepts anything, which is
+        # what most tests want; a list models a block that declares only some
+        # of its outputs, the way HorusAPI does, where setOutput raises on the
+        # rest and `outputs` still lists every declared id.
+        self._declared = list(declared) if declared is not None else None
+        self._outputValues = {}
         self.remote = FakeRemote()
         self.flow = FakeFlow()
         self.pluginDir = REPO_ROOT
@@ -93,8 +98,18 @@ class FakeBlock:
         # Filled in by the fake launcher
         self.launched = None
 
+    @property
+    def outputs(self):
+        if self._declared is None:
+            return self._outputValues
+
+        return {output_id: self._outputValues.get(output_id) for output_id in self._declared}
+
     def setOutput(self, output_id, value):
-        self.outputs[output_id] = value
+        if self._declared is not None and output_id not in self._declared:
+            raise Exception(f"Output ID '{output_id}' not found.")
+
+        self._outputValues[output_id] = value
 
     @property
     def command(self):
@@ -168,6 +183,7 @@ MODULES = {
         "MergeEnergies",
         "PredictorTCoaRse",
         "PredictorBimodal",
+        "TCoaRsePipeline",
     ]
 }
 
@@ -667,6 +683,43 @@ def test_missing_input_is_reported():
         assert "required" in str(error)
     else:
         raise AssertionError("A missing input should raise")
+
+
+def test_pipeline_publishes_only_the_declared_outputs():
+    """
+    The pipeline block declares the predictions and keeps the rest of its
+    sockets commented out, so that the canvas stays readable. The final action
+    still knows about all of them, and setOutput raises on an id the block does
+    not declare: publishing what the run produced must not bring it down.
+    """
+    module = block_module("TCoaRsePipeline")
+
+    block = FakeBlock(config=base_config(), declared=["predictions"])
+
+    predictions = touch(f"{BASENAME}_tcoarse_predictions.csv")
+    merged = touch(f"{BASENAME}_tcoarse_pydock_energies.csv")
+
+    block.extraData = {
+        "predictions": predictions,
+        "merged_csv": merged,
+        # Reached by no step of this run, so it is not on disk either
+        "dockq_csv": f"{BASENAME}_pairwise_dockq.csv",
+    }
+
+    # The results page is a Horus extension, out of reach of the fake runtime
+    original = module.show_results
+    module.show_results = lambda *args, **kwargs: None
+
+    try:
+        module.final_tcoarse_pipeline(block)
+    finally:
+        module.show_results = original
+
+    # ensure_produced() publishes the absolute path
+    assert block.outputs["predictions"].endswith(f"{BASENAME}_tcoarse_predictions.csv")
+
+    # Produced, but with no socket to publish it on
+    assert "merged_csv" not in block.outputs
 
 
 # ==========================#

@@ -441,7 +441,16 @@ def final_tcoarse_pipeline(block: SlurmBlock):
         (pdb_dir_output, "pdb_dir"),
     ]
 
+    # Only the sockets the block actually declares: setOutput raises on an
+    # unknown id, and the block below keeps most of these commented out to stay
+    # readable in the canvas. Uncommenting one is then all it takes to have it
+    # published again.
+    declared = block.outputs
+
     for variable, key in optional:
+        if variable.id not in declared:
+            continue
+
         path = data.get(key)
         if path and os.path.exists(path):
             block.setOutput(variable.id, path)
