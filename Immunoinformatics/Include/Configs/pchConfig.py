@@ -19,8 +19,10 @@ def checkInstallations(block: PluginConfig):
     # Get the path to the noah parser executable
 
     # Check if the path is valid
+    # Warn instead of raising: an exception here aborts the save of every
+    # config that comes after this one (see noahConfig for the details).
     if predig_PCH is None or not os.path.isfile(predig_PCH):
-        raise Exception("The PCH executable path is not valid")
+        print("Warning: the PCH executable path is not valid on this machine.")
 
 
 # Create a plugin configuration for the PredIG executables

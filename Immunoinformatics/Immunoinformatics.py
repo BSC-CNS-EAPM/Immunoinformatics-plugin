@@ -17,6 +17,10 @@ def create_plugin():
 
     immunoPlugin.addPage(setup_predig_page)
 
+    from Pages.setup_tcoarse import setup_tcoarse_page
+
+    immunoPlugin.addPage(setup_tcoarse_page)
+
     # ========== Blocks ========== #
     from Blocks.PredIG import predigBlock  # type: ignore
 
@@ -41,6 +45,72 @@ def create_plugin():
     # from Blocks.Tap import tapBlock  # type: ignore
 
     # immunoPlugin.addBlock(tapBlock)
+
+    # ========== TCoaRse Blocks ========== #
+    # Horus port of the tcoarse_prediction.nf Nextflow pipeline
+    from Blocks.TCoaRse.TCoaRsePipeline import tcoarsePipelineBlock  # type: ignore
+
+    immunoPlugin.addBlock(tcoarsePipelineBlock)
+
+    from Blocks.TCoaRse.AF3Outputs import af3OutputsBlock  # type: ignore
+
+    immunoPlugin.addBlock(af3OutputsBlock)
+
+    from Blocks.TCoaRse.QualityMetrics import qualityMetricsBlock  # type: ignore
+
+    immunoPlugin.addBlock(qualityMetricsBlock)
+
+    from Blocks.TCoaRse.QualityTier import qualityTierBlock  # type: ignore
+
+    immunoPlugin.addBlock(qualityTierBlock)
+
+    from Blocks.TCoaRse.CopyModels import copyModelsBlock  # type: ignore
+
+    immunoPlugin.addBlock(copyModelsBlock)
+
+    from Blocks.TCoaRse.StructureMetadata import structureMetadataBlock  # type: ignore
+
+    immunoPlugin.addBlock(structureMetadataBlock)
+
+    from Blocks.TCoaRse.Similarities import similaritiesBlock  # type: ignore
+
+    immunoPlugin.addBlock(similaritiesBlock)
+
+    from Blocks.TCoaRse.Embeddings import embeddingsBlock  # type: ignore
+
+    immunoPlugin.addBlock(embeddingsBlock)
+
+    from Blocks.TCoaRse.PredictorESMC import predictorESMCBlock  # type: ignore
+
+    immunoPlugin.addBlock(predictorESMCBlock)
+
+    from Blocks.TCoaRse.PyDockEnergies import pydockEnergiesBlock  # type: ignore
+
+    immunoPlugin.addBlock(pydockEnergiesBlock)
+
+    from Blocks.TCoaRse.ContactMaps import contactMapsBlock  # type: ignore
+
+    immunoPlugin.addBlock(contactMapsBlock)
+
+    from Blocks.TCoaRse.PairwiseDockQ import pairwiseDockQBlock  # type: ignore
+
+    immunoPlugin.addBlock(pairwiseDockQBlock)
+
+    from Blocks.TCoaRse.EnergeticScorer import energeticScorerBlock  # type: ignore
+
+    immunoPlugin.addBlock(energeticScorerBlock)
+
+    from Blocks.TCoaRse.MergeEnergies import mergeEnergiesBlock  # type: ignore
+
+    immunoPlugin.addBlock(mergeEnergiesBlock)
+
+    from Blocks.TCoaRse.PredictorTCoaRse import predictorTCoaRseBlock  # type: ignore
+
+    immunoPlugin.addBlock(predictorTCoaRseBlock)
+
+    from Blocks.TCoaRse.PredictorBimodal import predictorBimodalBlock  # type: ignore
+
+    immunoPlugin.addBlock(predictorBimodalBlock)
 
     # ========== Configs ========== #
     from Configs.columns_to_delete import columns_to_delete_config
@@ -86,6 +156,10 @@ def create_plugin():
     from Configs.predigModelsConfig import predigModelsConfig
 
     immunoPlugin.addConfig(predigModelsConfig)
+
+    from Configs.tcoarseConfig import tcoarseConfig
+
+    immunoPlugin.addConfig(tcoarseConfig)
 
     # ========== Pages ========== #
 

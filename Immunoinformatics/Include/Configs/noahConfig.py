@@ -18,8 +18,11 @@ def checkNOAHInstallation(block: PluginConfig):
     noahPath = block.variables.get(noahPathVariable.id)
 
     # Check if the path is valid
+    # Warn instead of raising: Horus saves every plugin config in a single loop
+    # and aborts it on the first exception, which would silently discard the
+    # configs saved after this one. The blocks re-check the path when they run.
     if noahPath is None or not os.path.isfile(noahPath):
-        raise Exception("The NOAH executable path is not valid")
+        print("Warning: the NOAH executable path is not valid on this machine.")
 
 
 # Create a plugin configuration for the noah executable

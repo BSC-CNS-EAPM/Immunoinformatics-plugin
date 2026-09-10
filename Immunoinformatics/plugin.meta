@@ -11,11 +11,11 @@
     "biopython==1.81",
     "pandas",
     "matplotlib==3.8.3",
-    "pathlib",
     "tensorflow",
     "scikit_learn",
     "xgboost<3.1",
     "numpy==1.26.4",
-    "itables"
+    "itables",
+    "git+https://github.com/martin-floor/bsc_calculations.git"
   ]
 }

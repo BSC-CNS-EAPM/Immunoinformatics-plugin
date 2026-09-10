@@ -9,6 +9,7 @@ import {
   Loader,
   LoadingOverlay,
   MantineProvider,
+  Menu,
   Pagination,
   Paper,
   Select,
@@ -69,6 +70,7 @@ type ResultsApiResponse = {
 function getURL(options?: {
   download?: boolean;
   fullSimulation?: boolean;
+  skipFolders?: boolean;
   page?: number;
   pageSize?: number;
 }) {
@@ -106,6 +108,13 @@ function getURL(options?: {
 
   if (options?.fullSimulation) {
     url.searchParams.set("simulation", "true");
+  }
+
+  // Leaves the subfolders of the results folder out of the zip. For a TCoaRse
+  // run those are the intermediates ('<prefix>_pdb', '<prefix>_cm'), one file
+  // per model, which are what makes the full archive too big to download.
+  if (options?.skipFolders) {
+    url.searchParams.set("skip_folders", "true");
   }
 
   if (options?.page) {
@@ -147,7 +156,21 @@ async function getDataFromHorus({
   }
 }
 
+/**
+ * The heading of the results page.
+ *
+ * The page is shared by every block that shows a table, so the title comes
+ * from the block (`storeExtensionResults(data={"title": ...})`) instead of
+ * being hardcoded. The last word is rendered plainly and the rest in the
+ * gradient, so "TCoaRse predictions" reads like "PredIG Results" did.
+ */
 function Welcome() {
+  const title = (window.extensionData?.["title"] as string) || "PredIG Results";
+
+  const words = title.trim().split(/\s+/);
+  const lead = words.slice(0, -1).join(" ");
+  const tail = words.length > 1 ? words[words.length - 1] : "";
+
   return (
     <>
       <Title className={classes.title} ta="center" mt={60}>
@@ -157,21 +180,38 @@ function Welcome() {
           component="span"
           gradient={{ from: "purple", to: "yellow" }}
         >
-          PredIG
-        </Text>{" "}
-        Results
+          {lead || title}
+        </Text>
+        {tail ? ` ${tail}` : ""}
       </Title>
     </>
   );
 }
 
-function downloadFile(fullSimulation: boolean) {
-  const url = getURL({ download: true, fullSimulation: fullSimulation });
+function downloadFile(fullSimulation: boolean, skipFolders = false) {
+  const url = getURL({
+    download: true,
+    fullSimulation: fullSimulation,
+    skipFolders: skipFolders,
+  });
 
   const a = document.createElement("a");
 
   a.href = url;
-  a.download = `predig_results.${fullSimulation ? "zip" : "csv"}`;
+  // Named after whatever the page is showing, so a TCoaRse run does not come
+  // down as predig_results.zip
+  const title = (window.extensionData?.["title"] as string) || "predig results";
+  // Trimmed of the underscores the substitution leaves at either end, and
+  // with a fallback: a title of only punctuation or non-ASCII would otherwise
+  // sanitize down to nothing and name the download ".zip"
+  const base =
+    title
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "results";
+
+  a.download = `${base}.${fullSimulation ? "zip" : "csv"}`;
 
   a.click();
 
@@ -239,11 +279,11 @@ function PredIGResults() {
     };
   });
 
-  function download(simulation: boolean) {
+  function download(simulation: boolean, skipFolders = false) {
     setIsDownloading(true);
 
     try {
-      downloadFile(simulation);
+      downloadFile(simulation, skipFolders);
     } finally {
       setIsDownloading(false);
     }
@@ -277,14 +317,32 @@ function PredIGResults() {
           >
             Download CSV
           </Button>
-          <Button
-            leftSection={
-              isDownloading ? <Loader color="white" size="sm" /> : <IconDownload size={18} />
-            }
-            onClick={() => download(true)}
-          >
-            Download simulation
-          </Button>
+          <Menu shadow="md" width={320} position="bottom-end">
+            <Menu.Target>
+              <Button
+                leftSection={
+                  isDownloading ? <Loader color="white" size="sm" /> : <IconDownload size={18} />
+                }
+              >
+                Download simulation
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item onClick={() => download(true, true)}>
+                <Text size="sm">Results only</Text>
+                <Text size="xs" c="dimmed">
+                  The files of the results folder, without its subfolders.
+                </Text>
+              </Menu.Item>
+              <Menu.Item onClick={() => download(true, false)}>
+                <Text size="sm">Everything</Text>
+                <Text size="xs" c="dimmed">
+                  The whole folder. For a TCoaRse run this includes the models
+                  and the contact maps, and can be very large.
+                </Text>
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
         </Group>
       </Group>
 

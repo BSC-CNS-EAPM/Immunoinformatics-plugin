@@ -25,10 +25,12 @@ def checkInstallation(block: PluginConfig):
             )
         except subprocess.CalledProcessError as e:
             # If the command fails, it will raise a CalledProcessError
+            # Warn instead of raising: an exception here aborts the save of
+            # every config that comes after this one (see noahConfig).
             if "command not found" in str(e.output):
-                raise Exception("mhcflurry-predict command not found")
+                print("Warning: the mhcflurry-predict command was not found.")
     elif predigMHCflurry is None or not os.path.isfile(predigMHCflurry):
-        raise Exception("The MHCflurry parser executable path is not valid")
+        print("Warning: the MHCflurry parser executable path is not valid on this machine.")
 
 
 # Create a plugin configuration for the noah executable

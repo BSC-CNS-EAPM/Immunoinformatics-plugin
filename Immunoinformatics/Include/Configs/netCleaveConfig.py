@@ -18,8 +18,10 @@ def checkNetCleaveInstallation(block: PluginConfig):
     cleavePath = block.variables.get(netCleavePathVariable.id)
 
     # Check if the path is valid
+    # Warn instead of raising: an exception here aborts the save of every
+    # config that comes after this one (see noahConfig for the details).
     if cleavePath is None or not os.path.isfile(cleavePath):
-        raise Exception("The NetCleave executable path is not valid")
+        print("Warning: the NetCleave executable path is not valid on this machine.")
 
 
 # Create a plugin configuration for the NetCleave executable

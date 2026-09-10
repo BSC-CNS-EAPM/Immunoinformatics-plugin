@@ -1,0 +1,651 @@
+"""
+BSC job submission helpers, vendored from the EAPM plugin
+(EAPM/Include/utils.py, https://github.com/BSC-CNS-EAPM/EAPM-plugins).
+
+Keep this file in sync with the EAPM one: it is copied verbatim so that both
+plugins submit jobs the same way. Everything TCoaRse-specific lives in
+tcoarse_utils.py instead.
+
+`launchCalculationAction` builds the job scripts with `bsc_calculations` for the
+selected Horus remote (MareNostrum, Nord3, cte-amd, powerpuff or local), creates
+a run folder on the remote, uploads the requested folders, and submits the job.
+`downloadResultsAction` brings the results back into the flow folder.
+"""
+
+import datetime
+import os
+import shutil
+import subprocess
+import threading
+import typing
+
+from HorusAPI import PluginBlock, PluginVariable, SlurmBlock, VariableList, VariableTypes
+
+localIPs = {"cactus": "84.88.51.217", "blossom": "84.88.51.250", "bubbles": "84.88.51.219"}
+
+
+def setup_bsc_calculations_based_on_horus_remote(
+    remote_name,
+    remote_host: str,
+    jobs,
+    partition,
+    scriptName,
+    cpus,
+    job_name,
+    program,
+    modulePurge,
+    cpus_per_task,
+    gpus=None,
+    conda_env=None,
+    modules=None,
+    exports=None,
+):
+    import bsc_calculations
+
+    cluster = "local"
+
+    if remote_name != "local":
+        cluster = remote_host
+
+    if remote_host in localIPs.values():
+        cluster = "powerpuff"
+
+    # If we are working with pele, only marenostrum and nord3 are allowed
+    if program == "pele":
+        if cluster not in [
+            "glogin1.bsc.es",
+            "glogin2.bsc.es",
+            "glogin3.bsc.es",
+            "glogin4.bsc.es",
+            "nord3.bsc.es",
+        ]:
+            raise Exception("Pele can only be run on Marenostrum or Nord3")
+
+        if cluster == "nord3.bsc.es":
+            bsc_calculations.nord3.setUpPELEForNord3(
+                jobs,
+                partition=partition,
+                cpus=cpus,
+                general_script=scriptName,
+                scripts_folder=scriptName + "_scripts",
+            )
+        elif "glogin" in cluster:
+            bsc_calculations.mn5.setUpPELEForMarenostrum(
+                jobs,
+                partition=partition,
+                cpus=cpus,
+                general_script=scriptName,
+                scripts_folder=scriptName + "_scripts",
+            )
+
+        return cluster
+
+    ## Define cluster
+    # cte_power
+    # if cluster == "plogin1.bsc.es":
+    #     bsc_calculations.cte_power.jobArrays(
+    #         jobs,
+    #         job_name=job_name,
+    #         partition=partition,
+    #         program=program,
+    #         script_name=scriptName,
+    #         gpus=cpus,
+    #         module_purge=modulePurge,
+    #     )
+    # marenostrum
+    elif "glogin" in cluster or "alogin" in cluster:
+        print("Generating Marenostrum jobs...")
+        mn5_arguments = {}
+        if gpus is not None:
+            mn5_arguments["gpus"] = gpus
+        # A 'program' shortcut overwrites the environment it knows about, so these
+        # are only honoured when the caller drops the program name.
+        if conda_env:
+            mn5_arguments["conda_env"] = conda_env
+        if modules:
+            mn5_arguments["modules"] = modules
+        if exports:
+            mn5_arguments["exports"] = exports
+        bsc_calculations.mn5.jobArrays(
+            jobs,
+            job_name=job_name,
+            partition=partition,
+            program=program,
+            script_name=scriptName,
+            ntasks=cpus,
+            cpus_per_task=cpus_per_task,
+            module_purge=modulePurge,
+            **mn5_arguments,
+        )
+    # minotauro
+    elif cluster == "mt1.bsc.es":
+        print("Generating minotauro jobs...")
+        bsc_calculations.minotauro.jobArrays(
+            jobs,
+            job_name=job_name,
+            partition=partition,
+            program=program,
+            script_name=scriptName,
+            gpus=cpus,
+            module_purge=modulePurge,
+        )
+    # nord3
+    elif "nord" in cluster:
+        print("Generating nord3 jobs...")
+        bsc_calculations.nord3.jobArrays(
+            jobs,
+            job_name=job_name,
+            partition=partition,
+            program=program,
+            script_name=scriptName,
+            cpus=cpus,
+            module_purge=modulePurge,
+        )
+    # cte-amd
+    elif "amdlogin" in cluster:
+        print("Generating cte-amd jobs...")
+        bsc_calculations.amd.jobArrays(
+            jobs,
+            job_name=job_name,
+            partition=partition,
+            program=program,
+            script_name=scriptName,
+            cpus=cpus,
+            # module_purge=modulePurge,
+        )
+    # powerpuff
+    elif cluster == "powerpuff":
+        print("Generating powerpuff girls jobs...")
+        bsc_calculations.local.parallel(
+            jobs,
+            cpus=min(cpus or 40, len(jobs)),
+            script_name=scriptName,
+        )
+    # local
+    elif cluster == "local":
+        print("Generating local jobs...")
+        bsc_calculations.local.parallel(
+            jobs,
+            cpus=min(cpus or 40, len(jobs)),
+            script_name=scriptName,
+        )
+    else:
+        raise Exception("Cluster not supported.")
+
+    return cluster
+
+
+HOOK_SCRIPT = """
+# Launch every job in the background, remembering its pid. The pid is needed to
+# recover the real exit code later: `$?` straight after `cmd &` is the status of
+# backgrounding the job, which is always 0, never the status of the job itself.
+# Each job writes to its own .out/.err: `${script%.*}` strips back to
+# "calculation_script" for every one of them, so they would all share one file.
+pids=""
+for script in calculation_script.sh_?; do
+    sh "$script" > "$script.out" 2> "$script.err" &
+    pids="$pids $!:$script"
+done
+
+failed=0
+for entry in $pids; do
+    pid="${entry%%:*}"
+    script="${entry#*:}"
+
+    wait "$pid"
+    code=$?
+
+    # Only the exit code decides whether a job failed. Output on stderr does not
+    # mean failure: well behaved programs write progress bars and warnings there
+    # (tqdm does it by default), so failing on a non-empty .err rejects jobs that
+    # completed perfectly well.
+    if [ "$code" -ne 0 ]; then
+        failed=1
+        echo "Error: Script $script failed with exit code $code" >&2
+        if [ -s "$script.err" ]; then
+            cat "$script.err" >&2
+        fi
+    fi
+done
+
+if [ "$failed" -ne 0 ]; then
+    exit 1
+fi
+
+echo "All scripts completed successfully."
+
+"""
+
+
+def _isProgressBar(line: str) -> bool:
+    """
+    Whether a stderr line is a progress bar rather than an error.
+
+    tqdm writes its bars to stderr and redraws them with carriage returns, so a
+    single line can hold several rendered bars. They all carry the "NN%|" marker.
+    """
+    return "%|" in line
+
+
+def _summarizeError(errLines: typing.List[str], returncode: int, maxLines: int = 20) -> str:
+    """
+    Build the exception message of a failed job out of its stderr.
+
+    Progress bars are dropped, because the last line of a failed run is usually
+    a finished bar and reporting only that hides the real error. Repeated lines
+    are collapsed: a command that fails inside a loop reports the same message
+    once per iteration.
+    """
+    meaningful = [line for line in errLines if not _isProgressBar(line)]
+
+    # If the job only ever wrote progress bars, they are all we have to report
+    if not meaningful:
+        meaningful = errLines
+
+    if not meaningful:
+        return f"The job failed with exit code {returncode} and produced no error output"
+
+    # Collapse repeated messages, keeping the order they were emitted in
+    counts: typing.Dict[str, int] = {}
+    for line in meaningful:
+        counts[line] = counts.get(line, 0) + 1
+
+    summary = [line if n == 1 else f"{line}  (x{n})" for line, n in counts.items()]
+
+    if len(summary) > maxLines:
+        hidden = len(summary) - maxLines
+        summary = summary[:maxLines] + [f"... and {hidden} more distinct error lines"]
+
+    return "\n".join([f"The job failed with exit code {returncode}:"] + summary)
+
+
+def launchCalculationAction(
+    block: SlurmBlock,
+    jobs: typing.List[str],
+    program: str,
+    uploadFolders: typing.Optional[typing.List[str]] = None,
+    modulePurge: typing.Optional[bool] = False,
+    condaEnv: typing.Optional[str] = None,
+    modules: typing.Optional[typing.List[str]] = None,
+    exports: typing.Optional[typing.List[str]] = None,
+):
+    if jobs is None:
+        raise Exception("No jobs selected")
+
+    partition = block.variables.get("partition")
+    cpus = block.variables.get("cpus")
+    cpus_per_task = block.variables.get("cpus_per_task")
+    # Only the blocks that expose the GPUs variable request them; the rest keep
+    # the cluster defaults.
+    gpus = block.variables.get("gpus")
+    simulationName = block.variables.get("folder_name")
+    scriptName = block.variables.get("script_name", "calculation_script.sh")
+
+    if simulationName is None:
+        simulationName = block.flow.name.lower().replace(" ", "_")
+
+    block.extraData["simulationName"] = simulationName
+
+    print(f"Launching BSC calculation with {cpus} CPUs")
+    if gpus is not None:
+        print(f"Requesting {gpus} GPU(s) and {cpus_per_task} CPUs per task")
+
+    # The local remote has no host, so only ask for it on real remotes
+    remoteHost = "localhost" if block.remote.isLocal else block.remote.host
+
+    # Read the environment variables
+    environmentValues = block.variables.get("environment_list", [])
+    environmentListValues = {}
+    if environmentValues is not None:
+        for env in environmentValues:
+            environmentListValues[env["environment_key"]] = env["environment_value"]
+
+    # The environment variables are written into the script by hand for the local
+    # runs below; on a cluster they have to travel as exports of the job.
+    jobExports = list(exports or [])
+    jobExports += [f"{key}={value}" for key, value in environmentListValues.items()]
+
+    cluster = setup_bsc_calculations_based_on_horus_remote(
+        block.remote.name.lower(),
+        remoteHost,
+        jobs,
+        partition,
+        scriptName,
+        cpus,
+        simulationName,
+        program,
+        modulePurge,
+        cpus_per_task,
+        gpus,
+        condaEnv,
+        modules,
+        jobExports,
+    )
+
+    # Rewrite the main script to add the environment variables
+    # and allow for waiting for the jobs to finish
+    # This is only necessary for powerpuff and local
+    if cluster == "powerpuff" or cluster == "local":
+        with open(scriptName, "w") as f:
+            f.write("#!/bin/sh\n")
+
+            # All of jobExports, not just the block's environment variables: the
+            # exports requested by the caller are the only way a local run can
+            # set up its environment, since it never activates `condaEnv`. The
+            # block's own variables come last in jobExports, so a value set in
+            # the block still overrides one the caller asked for.
+            for export in jobExports:
+                f.write(f"export {export}\n")
+
+            f.write(HOOK_SCRIPT)
+
+    if cluster != "local":
+        savedID_and_date = block.flow.savedID + "_" + str(datetime.datetime.now().timestamp())
+        simRemoteDir = os.path.join(block.remote.workDir, savedID_and_date)
+        block.extraData["remoteDir"] = simRemoteDir
+        block.remote.command(f"mkdir -p -v {simRemoteDir}")
+
+        print(f"Created simulation folder in the remote at {simRemoteDir}")
+        print("Sending data to the remote...")
+
+        # Check if in the input, scpefic folders to upload are specified
+        # If so, upload them
+        if uploadFolders is not None:
+            for file in uploadFolders:
+                finalPath = block.remote.sendData(file, simRemoteDir)
+            block.extraData["uploadedFolder"] = False
+        else:
+            # Send the whole folder to the remote
+            simRemoteDir = block.remote.sendData(os.getcwd(), simRemoteDir)
+            block.extraData["uploadedFolder"] = True
+
+        block.extraData["remoteContainer"] = simRemoteDir
+        # base_folder = os.path.basename(os.getcwd())
+
+        # # Move the contents of the sent folder to its parent
+        # # This is done because the folder is sent as a subfolder
+        # command = f"command: mv {simRemoteDir}/{base_folder} {simRemoteDir}"
+        # block.remote.remoteCommand(f"mv {simRemoteDir}/{base_folder} {simRemoteDir}")
+
+        # # Remove the sent folder
+        # block.remote.remoteCommand(f"rm -rf {simRemoteDir}/{base_folder}")
+
+        # Upload the commands
+        for file in os.listdir("."):
+            if file.startswith(scriptName):
+                block.remote.sendData(file, simRemoteDir)
+
+        # Upload the script
+        scriptPath = block.remote.sendData(scriptName, simRemoteDir)
+
+        print("Data sent to the remote.")
+
+        print("Running the simulation...")
+
+        # Run the simulation
+        if cluster == "powerpuff":
+            # The powerpuff cluster doesn't have Slurm, so we need to run the script manually & load the Schrodinger module
+            schrodingerPath = block.remote.command("echo $SCHRODINGER")
+            command = f"export={schrodingerPath} cd {simRemoteDir} && bash {scriptName}"
+
+            block.remote.command(command)
+
+        else:
+            print(f"Submitting the job to the remote... {scriptPath}")
+            if program == "pele":
+                with block.remote.cd(simRemoteDir):
+                    for jobScript in os.listdir(scriptName + "_scripts"):
+                        if jobScript.endswith(".sh"):
+                            jobID = block.remote.submitJob(
+                                scriptPath + "_scripts/" + jobScript, changeDir=False
+                            )
+                            print("Submitted job with ID: ", jobID)
+                print("Waiting for the jobs to finish...")
+            else:
+                jobID = block.remote.submitJob(scriptPath)
+                print(f"Simulation running with job ID {jobID}. Waiting for it to finish...")
+
+    # * Local
+    else:
+        print("Running the simulation locally...")
+
+        oldEnv = os.environ.copy()
+
+        for key, value in environmentListValues.items():
+            os.environ[key] = value
+
+        # Run the simulation
+        try:
+            with subprocess.Popen(
+                ["sh", scriptName],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            ) as p:
+                print(f"Simulation running with PID {p.pid}. Waiting for it to finish...")
+
+                if p.stdout is None:
+                    raise Exception("No stdout produced by the process")
+
+                # Every line of the error is kept, not just the last one:
+                # progress bars are written to stderr (tqdm does it by
+                # default), so the last line is usually a finished progress bar
+                # and reporting only that hides the real error.
+                errLines: typing.List[str] = []
+
+                def drainStderr(stream: typing.IO[bytes]) -> None:
+                    for errLine in stream:
+                        strippedErr = errLine.decode("utf-8").strip()
+                        if strippedErr != "":
+                            print(strippedErr)
+                            errLines.append(strippedErr)
+
+                # Read on a thread of its own rather than after the stdout loop.
+                # Both pipes have to be drained while the job runs: a job that
+                # fills the stderr pipe (~64k, which a few minutes of progress
+                # bars is enough for) blocks writing to it, never reaches the
+                # end of its stdout, and the two sides wait for each other for
+                # good. Reading it live also means the progress bars appear
+                # while the job runs instead of all at once when it is over.
+                stderrReader: typing.Optional[threading.Thread] = None
+                if p.stderr:
+                    stderrReader = threading.Thread(
+                        target=drainStderr, args=(p.stderr,), daemon=True
+                    )
+                    stderrReader.start()
+
+                for line in p.stdout:
+                    strippedOut = line.decode("utf-8").strip()
+                    if strippedOut != "":
+                        print(strippedOut)
+
+                # Wait for the process to finish
+                p.wait()
+
+                # Everything the job wrote to stderr has to be in errLines
+                # before it is summarized into the exception below
+                if stderrReader is not None:
+                    stderrReader.join()
+
+                if p.returncode != 0:
+                    raise Exception(_summarizeError(errLines, p.returncode))
+        finally:
+            # Put the values back into the mapping rather than rebinding the
+            # name: os.environ is not a plain dict, and assigning one leaves
+            # the process with a mapping that no longer reaches putenv(), so
+            # every later subprocess of Horus is started with a stale
+            # environment.
+            os.environ.clear()
+            os.environ.update(oldEnv)
+
+
+def downloadResultsAction(block: SlurmBlock):
+    """
+    Final action of the block. It downloads the results from the remote.
+
+    Args:
+        block (SlurmBlock): The block to run the action on.
+    """
+
+    if block.remote.name != "Local":
+        cluster = block.remote.host
+    else:
+        cluster = "local"
+
+    if cluster != "local":
+        simRemoteDir = block.extraData["remoteDir"]
+
+        print("Calculation finished, downloading results...")
+
+        currentFolder = os.getcwd()
+        folderDestinationOverride = os.path.join(currentFolder, "tmp_download")
+
+        if os.path.exists(folderDestinationOverride):
+            shutil.rmtree(folderDestinationOverride)
+
+        # Create the folder
+        os.makedirs(folderDestinationOverride)
+
+        final_path = block.remote.getData(simRemoteDir, folderDestinationOverride)
+
+        # If we sent the whole folder, the results are in a subfolder
+        # Move them to the parent folder
+        if block.extraData.get("uploadedFolder", False):
+            print("Uploaded folder, moving results to parent folder")
+            final_path = os.path.join(final_path, os.path.basename(currentFolder))
+
+        # Move the contents of the downloaded folder to its parent
+        # This is done because the folder is downloaded as a subfolder
+        for file in os.listdir(final_path):
+            current_path = os.path.join(final_path, file)
+            new_path = os.path.join(currentFolder, file)
+
+            if os.path.exists(new_path):
+                if os.path.isdir(new_path):
+                    shutil.rmtree(new_path)
+                else:
+                    os.remove(new_path)
+
+            shutil.move(current_path, new_path)
+
+        # Remove the downloaded folder
+        shutil.rmtree(folderDestinationOverride)
+
+        final_path = currentFolder
+
+        print(f"Results downloaded to {final_path}")
+
+        remoteContainer = block.extraData["remoteContainer"]
+
+        remove_remote_folder_on_finish = block.variables.get("remove_folder_on_finish", True)
+        # Remove the remote folder
+        if remove_remote_folder_on_finish:
+            print(f"Removing remote folder {remoteContainer}")
+            block.remote.command(f"rm -rf {remoteContainer}")
+    else:
+        final_path = os.path.join(os.getcwd())
+        print("Calculation finished, results are in the folder: ", final_path)
+
+    return final_path
+
+
+# Other variables
+# simulationNameVariable = PluginVariable(
+#     name="Simulation name",
+#     id="folder_name",
+#     description="Name of the simulation folder. By default it will be the same as the flow name.",
+#     type=VariableTypes.STRING,
+#     category="Slurm configuration",
+# )
+scriptNameVariable = PluginVariable(
+    name="Script name",
+    id="script_name",
+    description="Name of the script.",
+    type=VariableTypes.STRING,
+    defaultValue="calculation_script.sh",
+    category="Slurm configuration",
+)
+
+partitionVariable = PluginVariable(
+    name="Partition",
+    id="partition",
+    description="Partition where to lunch.",
+    type=VariableTypes.STRING_LIST,
+    defaultValue="gp_bscls",
+    allowedValues=["gp_bscls", "gp_debug", "acc_bscls", "acc_debug", "debug", "bsc_ls"],
+    category="Slurm configuration",
+)
+
+cpusVariable = PluginVariable(
+    name="CPUs",
+    id="cpus",
+    description="Number of CPUs to use. On a cluster this sets the job's tasks/CPUs; "
+    "running locally it sets how many jobs run in parallel (capped by the number "
+    "of jobs).",
+    type=VariableTypes.INTEGER,
+    defaultValue=1,
+    category="Slurm configuration",
+)
+
+cpusPerTaskVariable = PluginVariable(
+    name="CPUs per task",
+    id="cpus_per_task",
+    description="Number of CPUs per task to use.",
+    type=VariableTypes.INTEGER,
+    defaultValue=1,
+    category="Slurm configuration",
+)
+
+gpusVariable = PluginVariable(
+    name="GPUs",
+    id="gpus",
+    description="Number of GPUs to request per job (--gres gpu:N). Only honoured on "
+    "GPU partitions (the 'acc_*' queues on MareNostrum); set the CPUs per task "
+    "variable to choose how many CPUs go with them.",
+    type=VariableTypes.INTEGER,
+    defaultValue=1,
+    category="Slurm configuration",
+)
+
+removeFolderOnFinishVariable = PluginVariable(
+    name="Remove remote folder on finish",
+    id="remove_folder_on_finish",
+    description="Deletes the calculation folder on the remote on finish.",
+    type=VariableTypes.BOOLEAN,
+    defaultValue=True,
+    category="Remote",
+)
+
+# Advanced variables
+environmentKeyVariable = PluginVariable(
+    name="Environment",
+    id="environment_key",
+    description="Environment key",
+    type=VariableTypes.STRING,
+    category="Environment",
+)
+
+environmentValueVariable = PluginVariable(
+    name="Value",
+    id="environment_value",
+    description="Environment value",
+    type=VariableTypes.STRING,
+    category="Environment",
+)
+
+environmentList = VariableList(
+    id="environment_list",
+    name="Environment variables",
+    description="Environment variables to set during the remote connection.",
+    prototypes=[environmentKeyVariable, environmentValueVariable],
+    category="Environment",
+)
+
+BSC_JOB_VARIABLES = [
+    # simulationNameVariable,
+    scriptNameVariable,
+    partitionVariable,
+    cpusVariable,
+    environmentList,
+    removeFolderOnFinishVariable,
+    cpusPerTaskVariable,
+]
