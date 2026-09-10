@@ -11,7 +11,7 @@
 # a working install rather than an upstream contract, so it will drift: if
 # TCoaRse-nf ever adopts an environment file, use that one and delete this.
 #
-#     micromamba create -f Devtools/tcoarse-env.yml   # or conda env create -f
+#     micromamba create -f devtools/tcoarse-env.yml   # or conda env create -f
 #
 # Two things to check against the machine that will run the jobs:
 #

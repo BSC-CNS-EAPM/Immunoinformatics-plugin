@@ -7,7 +7,7 @@ if typing.TYPE_CHECKING:
     import pandas as pd
 
 
-def runPredigPCH(df_csv: "pd.DataFrame", seed: int, predigPCH_path: str, rscript_path: str) -> "pd.DataFrame":
+def runPredigPCH(df_csv: "pd.DataFrame", seed: int, predigPCH_path: str, rscript_path: str, workdir: str = ".") -> "pd.DataFrame":
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
@@ -19,7 +19,8 @@ def runPredigPCH(df_csv: "pd.DataFrame", seed: int, predigPCH_path: str, rscript
         df_csv = df_csv.rename(columns={"epitope": "peptide"})
 
     df_csv = df_csv[["peptide"]]
-    df_csv.to_csv(".input_pch.csv", index=False)
+    input_path = os.path.join(workdir, ".input_pch.csv")
+    df_csv.to_csv(input_path, index=False)
 
     # Run the PCH
     try:
@@ -35,6 +36,7 @@ def runPredigPCH(df_csv: "pd.DataFrame", seed: int, predigPCH_path: str, rscript
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            cwd=workdir,
         )
         stdout, stderr = proc.communicate()
         print("Output:", stdout.decode())
@@ -50,17 +52,17 @@ def runPredigPCH(df_csv: "pd.DataFrame", seed: int, predigPCH_path: str, rscript
 
     # In Horus always import inside function scopes
     import pandas as pd
-    df = pd.read_csv(".input_pch_pch.csv")
+    df = pd.read_csv(os.path.join(workdir, ".input_pch_pch.csv"))
     df = df.rename(columns={"peptide": "epitope"})
-    df.to_csv("output_pch.csv", index=True)
+    df.to_csv(os.path.join(workdir, "output_pch.csv"), index=True)
 
-    os.remove(".input_pch.csv")
-    os.remove(".input_pch_pch.csv")
+    os.remove(input_path)
+    os.remove(os.path.join(workdir, ".input_pch_pch.csv"))
 
     return df
 
 
-def runPredigMHCflurry(df_csv: "pd.DataFrame", predigMHCflurry_path: str):
+def runPredigMHCflurry(df_csv: "pd.DataFrame", predigMHCflurry_path: str, workdir: str = "."):
 
     # Check if 'peptide' and 'allele' columns exist
     if "peptide" not in df_csv.columns and "epitope" not in df_csv.columns:
@@ -80,9 +82,10 @@ def runPredigMHCflurry(df_csv: "pd.DataFrame", predigMHCflurry_path: str):
         df_csv = df_csv.rename(columns={"epitope": "peptide"})
 
     df_csv = df_csv[["peptide", "allele"]]
-    df_csv.to_csv(".input_MHCflurry.csv", index=False)
+    input_path = os.path.join(workdir, ".input_MHCflurry.csv")
+    df_csv.to_csv(input_path, index=False)
 
-    output = "output_MHCflurry.csv"
+    output = os.path.join(workdir, "output_MHCflurry.csv")
 
     # Run the MHCflurry
     try:
@@ -91,13 +94,14 @@ def runPredigMHCflurry(df_csv: "pd.DataFrame", predigMHCflurry_path: str):
                 predigMHCflurry_path,
                 ".input_MHCflurry.csv",
                 "--out",
-                output,
+                "output_MHCflurry.csv",
                 "--no-throw",
                 "--always-include-best-allele",
                 "--no-flanking",
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            cwd=workdir,
         )
         stdout, stderr = proc.communicate()
         print("Output:", stdout.decode())
@@ -120,7 +124,7 @@ def runPredigMHCflurry(df_csv: "pd.DataFrame", predigMHCflurry_path: str):
     df = df.rename(columns={"allele": "hla_allele", "peptide": "epitope"})
     df.to_csv(output, index=True)
 
-    os.remove(".input_MHCflurry.csv")
+    os.remove(input_path)
 
     return df
 
@@ -136,6 +140,7 @@ def runPredigNetCleave(
     df_csv: typing.Optional["pd.DataFrame"] = None,
     fasta: typing.Optional[str] = None,
     python_exec="python",
+    workdir: str = ".",
 ):
 
     if df_csv is None and fasta is None:
@@ -154,7 +159,7 @@ def runPredigNetCleave(
         else:
             raise ValueError(f"Unsupported mode '{mode}' with CSV input.")
 
-        net_cleave_input = ".input_NetCleave.csv"
+        net_cleave_input = os.path.join(workdir, ".input_NetCleave.csv")
         df_csv.to_csv(net_cleave_input, index=False)
 
     elif fasta is not None:
@@ -171,7 +176,7 @@ def runPredigNetCleave(
         *python_exec,
         predigNetcleave_path,
         "--predict",
-        net_cleave_input,
+        os.path.abspath(net_cleave_input),
         "--pred_input",
         str(mode),
     ]
@@ -181,6 +186,7 @@ def runPredigNetCleave(
             # env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            cwd=workdir,
         )
         stdout, stderr = proc.communicate()
         print("Output:", stdout.decode())
@@ -204,7 +210,7 @@ def runPredigNetCleave(
     else:
         raise ValueError(f"Unsupported mode '{mode}'.")
 
-    output = os.path.join("output", output)
+    output = os.path.join(workdir, "output", output)
     import pandas as pd
     df = pd.read_csv(output)
 
@@ -214,9 +220,14 @@ def runPredigNetCleave(
     for index, row in df.iterrows():
         if pd.isnull(row["prediction"]):
             hasErrors = True
-            print(
-                f"NetCleave prediction failed for epitope '{row['epitope']}', uniprot ID '{row['uniprot_id']}' in row '{index}': {row['warnings']}"
-            )
+            if "uniprot_id" in df.columns:
+                print(
+                    f"NetCleave prediction failed for epitope '{row['epitope']}', uniprot ID '{row['uniprot_id']}' in row '{index}': {row['warnings']}"
+                )
+            else:
+                print(
+                    f"NetCleave prediction failed for epitope '{row['epitope']}' in row '{index}': {row['warnings']}"
+                )
 
     if not hasErrors:
         print("NetCleave prediction succeeded for all entries.")
@@ -226,12 +237,12 @@ def runPredigNetCleave(
     df = df.rename(columns={"prediction": "netcleave"})
     df.to_csv(output, index=True)
 
-    shutil.rmtree("output")
+    shutil.rmtree(os.path.join(workdir, "output"))
     return df
 
 
 def runPredigNOAH(
-    df_csv: "pd.DataFrame", predigNOAH_path: str, model: str, python_exec: str = "python"
+    df_csv: "pd.DataFrame", predigNOAH_path: str, model: str, python_exec: str = "python", workdir: str = "."
 ) -> "pd.DataFrame":
 
     # Check if 'peptide' and 'allele' columns exist
@@ -257,7 +268,8 @@ def runPredigNOAH(
 
     df_csv = df_csv[["peptide", "allele"]]
     df_csv = df_csv.rename(columns={"allele": "HLA"})
-    df_csv.to_csv(".input_noah.csv", index=False)
+    input_path = os.path.join(workdir, ".input_noah.csv")
+    df_csv.to_csv(input_path, index=False)
 
     # Run the NOAH
     python_exec_list = python_exec.strip().split(" ")
@@ -273,7 +285,7 @@ def runPredigNOAH(
     ]
     try:
         print(f"Running NOAH with command: {' '.join(cmd)}")
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as proc:
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=workdir) as proc:
             stdout, stderr = proc.communicate()
             print("NOAH finished with return code:", proc.returncode)
             print("NOAH stdout:", stdout.decode())
@@ -294,15 +306,15 @@ def runPredigNOAH(
     import pandas as pd
 
     df = pd.read_csv(
-        ".output_noah.csv",
+        os.path.join(workdir, ".output_noah.csv"),
         delimiter="\t",
         header=None,
     )
     df.columns = ["hla_allele", "epitope", "NOAH"]
-    df.to_csv(output, index=True)
+    df.to_csv(os.path.join(workdir, output), index=True)
 
-    os.remove(".input_noah.csv")
-    os.remove(".output_noah.csv")
+    os.remove(input_path)
+    os.remove(os.path.join(workdir, ".output_noah.csv"))
 
     return df
 
@@ -314,6 +326,7 @@ def run_Predig_tapmap(
     peptide_len: typing.Optional[list[int]],
     alpha: typing.Union[float, None],
     precursor_len: typing.Union[int, None],
+    workdir: str = ".",
 ) -> "pd.DataFrame":
 
     # Check if 'peptide' and 'allele' columns exist
@@ -342,7 +355,8 @@ def run_Predig_tapmap(
                     dict_sizes[len(peptide)] = [peptide]
 
     for size in dict_sizes:
-        with open(f".input_tapmap_{size}.fasta", "w") as f:
+        input_fasta = os.path.join(workdir, f".input_tapmap_{size}.fasta")
+        with open(input_fasta, "w") as f:
             for i, peptide in enumerate(dict_sizes[size]):
                 f.write(f">{i}\n")
                 f.write(peptide + "\n")
@@ -363,6 +377,7 @@ def run_Predig_tapmap(
                 command,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                cwd=workdir,
                 shell=True,
             )
             stdout, stderr = proc.communicate()
@@ -385,7 +400,7 @@ def run_Predig_tapmap(
     epitope = []
     tap = []
     for size in dict_sizes:
-        with open(f".output_tapmap_{size}.txt", "r") as infile:
+        with open(os.path.join(workdir, f".output_tapmap_{size}.txt"), "r") as infile:
             for line in infile:
                 if not line.startswith("#"):
                     parts = line.split()
@@ -396,13 +411,13 @@ def run_Predig_tapmap(
                         tap.append(parts[2])
 
     for size in dict_sizes:
-        os.remove(f".input_tapmap_{size}.fasta")
-        os.remove(f".output_tapmap_{size}.txt")
+        os.remove(os.path.join(workdir, f".input_tapmap_{size}.fasta"))
+        os.remove(os.path.join(workdir, f".output_tapmap_{size}.txt"))
 
     # In Horus always import inside function scopes
     import pandas as pd
 
     df = pd.DataFrame({"epitope": epitope, "TAP": tap})
-    df.to_csv("output_tapmap.csv", index=False)
+    df.to_csv(os.path.join(workdir, "output_tapmap.csv"), index=False)
 
     return df

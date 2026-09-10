@@ -192,7 +192,7 @@ folder in *AF3 Outputs*, set the remote and the job settings, and run.
 Regenerate the preset after changing any block or port id:
 
 ```bash
-python Devtools/generate_tcoarse_flow.py
+python devtools/generate_tcoarse_flow.py
 ```
 
 ### Suggested first run

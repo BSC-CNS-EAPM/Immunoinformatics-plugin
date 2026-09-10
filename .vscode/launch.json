@@ -1,0 +1,35 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Debug Plugin Load",
+			"type": "debugpy",
+			"request": "attach",
+			"connect": {
+				"host": "localhost",
+				"port": 5678
+			},
+			"preLaunchTask": "debug-horus"
+		},
+		{
+			"name": "Auto-attach Flow Process",
+			"type": "debugpy",
+			"request": "attach",
+			"connect": {
+				"host": "localhost",
+				"port": 5679
+			},
+			"preLaunchTask": "wait-for-flow-subprocess",
+			"autoReload": {
+				"enable": true
+			}
+		}
+	],
+	"compounds": [
+		{
+			"name": "Debug Both Processes",
+			"configurations": ["Debug Plugin Load", "Auto-attach Flow Process"],
+			"stopAll": true
+		}
+	]
+}

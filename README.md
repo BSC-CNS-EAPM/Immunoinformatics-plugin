@@ -21,7 +21,7 @@ Quick start:
    working one here:
 
    ```bash
-   micromamba create -f Devtools/tcoarse-env.yml   # or: conda env create -f
+   micromamba create -f devtools/tcoarse-env.yml   # or: conda env create -f
    ```
 
    Read its header before using it on a cluster: it snapshots a CPU torch
@@ -46,5 +46,5 @@ Horus checkout if it is not in `~/GitHub/horus`.
 Regenerate the flow preset after changing any block id:
 
 ```bash
-python Devtools/generate_tcoarse_flow.py
+python devtools/generate_tcoarse_flow.py
 ```

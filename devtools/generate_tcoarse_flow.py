@@ -7,7 +7,7 @@ never drifts from the ids declared in Include/Blocks/TCoaRse.
 
 Usage (needs a python with HorusAPI importable, e.g. the `horus` env):
 
-    python Devtools/generate_tcoarse_flow.py [--horus /path/to/horus/checkout]
+    python devtools/generate_tcoarse_flow.py [--horus /path/to/horus/checkout]
 """
 
 import argparse

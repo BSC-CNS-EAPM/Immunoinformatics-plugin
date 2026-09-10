@@ -1,0 +1,39 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "debug-horus",
+			"type": "shell",
+			"command": "${workspaceFolder}/devtools/run-horus-debug.sh & while ! nc -z localhost 5678; do sleep 0.2; done && echo 'Horus debugger ready on port 5678' && wait",
+			"group": "test",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": "^$"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*(Starting Horus|Debugpy started).*",
+					"endsPattern": "Horus debugger ready on port 5678"
+				}
+			}
+		},
+		{
+			"label": "wait-for-flow-subprocess",
+			"type": "shell",
+			"command": "while ! nc -z localhost 5679; do sleep 1; done && echo 'Subprocess debugger ready on port 5679'",
+			"group": "test",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": "^$"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*",
+					"endsPattern": "Subprocess debugger ready on port 5679"
+				}
+			}
+		}
+	]
+}

@@ -1,3 +1,6 @@
 {
-    "python.analysis.extraPaths": ["./Immunoinformatics/Include"]
+    "python.analysis.extraPaths": [
+        "Immunoinformatics/Include",
+        "HORUS_PLUGINS_DIR"
+    ]
 }
