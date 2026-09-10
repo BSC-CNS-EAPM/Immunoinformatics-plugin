@@ -16,6 +16,7 @@ import datetime
 import os
 import shutil
 import subprocess
+import threading
 import typing
 
 from HorusAPI import PluginBlock, PluginVariable, SlurmBlock, VariableList, VariableTypes
@@ -425,26 +426,45 @@ def launchCalculationAction(
                 if p.stdout is None:
                     raise Exception("No stdout produced by the process")
 
+                # Every line of the error is kept, not just the last one:
+                # progress bars are written to stderr (tqdm does it by
+                # default), so the last line is usually a finished progress bar
+                # and reporting only that hides the real error.
+                errLines: typing.List[str] = []
+
+                def drainStderr(stream: typing.IO[bytes]) -> None:
+                    for errLine in stream:
+                        strippedErr = errLine.decode("utf-8").strip()
+                        if strippedErr != "":
+                            print(strippedErr)
+                            errLines.append(strippedErr)
+
+                # Read on a thread of its own rather than after the stdout loop.
+                # Both pipes have to be drained while the job runs: a job that
+                # fills the stderr pipe (~64k, which a few minutes of progress
+                # bars is enough for) blocks writing to it, never reaches the
+                # end of its stdout, and the two sides wait for each other for
+                # good. Reading it live also means the progress bars appear
+                # while the job runs instead of all at once when it is over.
+                stderrReader: typing.Optional[threading.Thread] = None
+                if p.stderr:
+                    stderrReader = threading.Thread(
+                        target=drainStderr, args=(p.stderr,), daemon=True
+                    )
+                    stderrReader.start()
+
                 for line in p.stdout:
                     strippedOut = line.decode("utf-8").strip()
                     if strippedOut != "":
                         print(strippedOut)
 
-                # Print the error.
-                # Every line is kept, not just the last one: progress bars are
-                # written to stderr (tqdm does it by default), so the last line
-                # is usually a finished progress bar and reporting only that
-                # hides the real error.
-                errLines: typing.List[str] = []
-                if p.stderr:
-                    for line in p.stderr:
-                        strippedErr = line.decode("utf-8").strip()
-                        if strippedErr != "":
-                            print(strippedErr)
-                            errLines.append(strippedErr)
-
                 # Wait for the process to finish
                 p.wait()
+
+                # Everything the job wrote to stderr has to be in errLines
+                # before it is summarized into the exception below
+                if stderrReader is not None:
+                    stderrReader.join()
 
                 if p.returncode != 0:
                     raise Exception(_summarizeError(errLines, p.returncode))
