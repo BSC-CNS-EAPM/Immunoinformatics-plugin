@@ -28,6 +28,38 @@ ARCHIVE_SUFFIXES = (".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".tar", ".zip")
 
 UPLOAD_DIR_NAME = "af3_upload"
 
+# Largest archive the upload endpoint accepts. The page refuses bigger files
+# before sending them; this is what enforces it for any other client.
+MAX_ARCHIVE_BYTES = 3 * 1024**3
+
+# Slack on the request length check. The request carries the multipart
+# boundaries and the flow_path field besides the archive, so its length is a
+# few hundred bytes more than the file: without this, an archive just under
+# the limit would be refused, with a message claiming it is over. The exact
+# limit is enforced on the file itself once it has been read.
+REQUEST_OVERHEAD_BYTES = 1024**2
+
+MAX_ARCHIVE_MSG = (
+    "The archive is larger than 3 GB. Put the predictions on the machine "
+    "running Horus and browse to the folder instead."
+)
+
+# Largest total size the archive may unpack to. A small archive can still
+# expand to fill the disk, so the members are added up before anything is
+# written.
+MAX_EXTRACTED_BYTES = int(3.5 * 1024**3)
+
+
+def _check_extracted_size(sizes: typing.Iterable[int]) -> None:
+    """
+    Refuse an archive whose members add up to more than MAX_EXTRACTED_BYTES.
+    """
+    if sum(sizes) > MAX_EXTRACTED_BYTES:
+        raise ValueError(
+            "The archive unpacks to more than 3.5 GB. Put the predictions on the "
+            "machine running Horus and browse to the folder instead."
+        )
+
 
 def _is_within(directory: str, target: str) -> bool:
     """
@@ -52,6 +84,10 @@ def _safe_extract_zip(archive, destination: str) -> None:
             ):
                 raise ValueError(f"The archive holds an unsafe path: '{member}'")
 
+        # The declared sizes can be relied on: zipfile stops reading a member
+        # at its declared size and fails the CRC check if the data is longer
+        _check_extracted_size(info.file_size for info in zip_file.infolist())
+
         zip_file.extractall(destination)
 
 
@@ -74,6 +110,10 @@ def _safe_extract_tar(archive, destination: str) -> None:
 
             if member.issym() or member.islnk():
                 raise ValueError(f"The archive holds a link: '{member.name}'")
+
+        # Compression wraps the whole tar stream, so each member's size is the
+        # number of bytes it really writes
+        _check_extracted_size(member.size for member in tar_file.getmembers())
 
         tar_file.extractall(destination)
 
@@ -103,12 +143,34 @@ def upload_af3():
     import shutil
 
     from flask import jsonify, request
+    from werkzeug.exceptions import RequestEntityTooLarge
 
-    archive = request.files.get("archive")
-    flow_path = request.form.get("flow_path")
+    # Bound how much of the request is read before request.files parses, and
+    # spools to disk, the body. Set on the request, Werkzeug refuses a longer
+    # Content-Length up front and, for a chunked upload that sends no length at
+    # all, stops reading once the limit is passed. Checking content_length by
+    # hand misses that second case, which let the whole body be spooled first.
+    # The allowance is for the form around the archive; the exact limit is
+    # applied to the file below.
+    request.max_content_length = MAX_ARCHIVE_BYTES + REQUEST_OVERHEAD_BYTES
+
+    try:
+        archive = request.files.get("archive")
+        flow_path = request.form.get("flow_path")
+    except RequestEntityTooLarge:
+        return jsonify({"ok": False, "msg": MAX_ARCHIVE_MSG}), 413
 
     if archive is None or not archive.filename:
         return jsonify({"ok": False, "msg": "No archive was uploaded"}), 400
+
+    # The exact limit, on the archive itself: the request length above includes
+    # the form around it, and is not always sent (chunked uploads)
+    archive.stream.seek(0, os.SEEK_END)
+    archive_size = archive.stream.tell()
+    archive.stream.seek(0)
+
+    if archive_size > MAX_ARCHIVE_BYTES:
+        return jsonify({"ok": False, "msg": MAX_ARCHIVE_MSG}), 413
 
     filename = os.path.basename(archive.filename)
     suffix = next(
@@ -186,3 +248,95 @@ upload_af3_endpoint = PluginEndpoint(
 )
 
 setup_tcoarse_page.addEndpoint(upload_af3_endpoint)
+
+
+# ==========================#
+# Example set
+# ==========================#
+EXAMPLE_SET_DIR_NAME = "examples"
+
+
+def _af3_model_folders(af3_dir: str) -> typing.List[str]:
+    """
+    The subfolders of `af3_dir` holding AlphaFold3 models, in the layout the
+    Copy Models step reads: <tcr>/seed-*/*_model.cif.
+    """
+    import glob
+
+    return [
+        name
+        for name in sorted(os.listdir(af3_dir))
+        if os.path.isdir(os.path.join(af3_dir, name))
+        and glob.glob(os.path.join(af3_dir, name, "seed-*", "*_model.cif"))
+    ]
+
+
+def _describe_example_set(tcoarse_dir: typing.Optional[str]) -> dict:
+    """
+    Whether the example set is usable from `tcoarse_dir`, and where it is.
+
+    Kept apart from the endpoint so it can be checked without a running Horus.
+    """
+    if not tcoarse_dir:
+        return {
+            "ok": True,
+            "available": False,
+            "msg": "The TCoaRse installation folder is not configured",
+        }
+
+    af3_dir = os.path.join(str(tcoarse_dir).strip(), EXAMPLE_SET_DIR_NAME)
+
+    if not os.path.isdir(af3_dir):
+        return {"ok": True, "available": False, "msg": f"'{af3_dir}' does not exist"}
+
+    folders = _af3_model_folders(af3_dir)
+
+    if not folders:
+        return {
+            "ok": True,
+            "available": False,
+            "msg": f"'{af3_dir}' holds no AlphaFold3 models",
+        }
+
+    return {
+        "ok": True,
+        "available": True,
+        "af3_dir": af3_dir,
+        "folders": len(folders),
+        "sample": folders[:5],
+    }
+
+
+def example_set():
+    """
+    Where the TCoaRse example set is on the machine running Horus, if it is there.
+
+    The examples ship with the TCoaRse-nf checkout, so the folder is resolved
+    from the configured TCoaRse installation instead of being hardcoded. That
+    finds it on whichever machine the plugin is set up on -- perry, for the
+    shared Horus server -- and reports it as unavailable anywhere else, so the
+    page only offers it where it works.
+    """
+    from flask import jsonify
+
+    try:
+        from App import AppDelegate  # type: ignore
+
+        config = AppDelegate().server.pluginManager.getPluginConfig("immuno", "Local")
+    except Exception as error:  # pylint: disable=broad-exception-caught
+        return jsonify(
+            {
+                "ok": True,
+                "available": False,
+                "msg": f"Could not read the TCoaRse configuration: {error}",
+            }
+        )
+
+    return jsonify(_describe_example_set(config.get("tcoarse_dir")))
+
+
+example_set_endpoint = PluginEndpoint(
+    url="/tcoarse_api/example_set/", methods=["GET"], function=example_set
+)
+
+setup_tcoarse_page.addEndpoint(example_set_endpoint)

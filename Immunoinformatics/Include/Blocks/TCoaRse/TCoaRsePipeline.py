@@ -276,6 +276,19 @@ def _af3_dir(block: SlurmBlock) -> str:
             "'AF3 outputs' input."
         )
 
+    # The example set is found on the machine running Horus, and the AF3 folder
+    # is used in place by whichever machine runs the job, so it only exists for
+    # runs on Local. The setup page only offers it then, but the remote can be
+    # changed after the folder was chosen.
+    from_page = not block.inputs.get(af3_dir_variable.id)
+    if from_page and _setup(block).get("af3_source") == "example" and not block.remote.isLocal:
+        raise Exception(
+            "The example set is on the machine running Horus, so it can only be "
+            f"used for runs on Local, not on '{block.remote.name}'. Select Local "
+            "as the block's remote, or choose an AF3 folder that exists on "
+            f"'{block.remote.name}'."
+        )
+
     return str(af3_dir)
 
 

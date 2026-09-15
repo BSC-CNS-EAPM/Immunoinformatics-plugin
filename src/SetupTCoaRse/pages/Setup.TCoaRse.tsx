@@ -27,6 +27,7 @@ import {
   IconAlertTriangle,
   IconArrowUpRight,
   IconCircleCheck,
+  IconFlask,
   IconFolderOpen,
   IconInfoCircle,
   IconLicense,
@@ -61,7 +62,11 @@ const DEFAULTS: TCoaRseSettings = {
   model: "",
   accepted_non_commercial: false,
   accepted_af3_terms: false,
+  af3_source: "",
 };
+
+/** Largest archive the upload endpoint accepts (MAX_ARCHIVE_BYTES there). */
+const MAX_ARCHIVE_BYTES = 3 * 1024 ** 3;
 
 /** Bytes as the closest readable unit, e.g. "412.3 MB". */
 function formatBytes(bytes: number): string {
@@ -86,6 +91,31 @@ export function SetupTCoaRseMain() {
   );
   const [sent, setSent] = useState(0);
   const uploadRequest = useRef<XMLHttpRequest | null>(null);
+  const [exampleSet, setExampleSet] = useState<{
+    af3_dir: string;
+    folders: number;
+  } | null>(null);
+
+  // The example set ships with the TCoaRse checkout of the machine running
+  // Horus, so it only exists where the plugin is set up with one (perry). Ask
+  // the server, and only offer it when it is there.
+  useEffect(() => {
+    fetch("tcoarse_api/example_set/")
+      .then((response) => response.json())
+      .then((data) => {
+        if (data?.available && data.af3_dir) {
+          setExampleSet({ af3_dir: data.af3_dir, folders: data.folders });
+        }
+      })
+      .catch(() => setExampleSet(null));
+  }, []);
+
+  // The AF3 folder is used in place by whichever machine runs the job, and the
+  // example set is on the machine running Horus, so it only works for runs on
+  // Local. The canvas hands the block to this page along with the variable.
+  const selectedRemote: string | undefined =
+    window.horusVariable?.getVariable?.()?.block?.selectedRemote;
+  const exampleOffered = Boolean(exampleSet) && selectedRemote === "Local";
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadInfo, setUploadInfo] = useState<string | null>(null);
 
@@ -108,6 +138,10 @@ export function SetupTCoaRseMain() {
     value: TCoaRseSettings[K]
   ) => setSettings((current) => ({ ...current, [key]: value }));
 
+  /** Set the AF3 folder from anywhere but the example set, dropping that origin. */
+  const setAf3Dir = (af3_dir: string) =>
+    setSettings((current) => ({ ...current, af3_dir, af3_source: "" }));
+
   /**
    * Pick the folder with the native explorer of Horus.
    *
@@ -121,16 +155,28 @@ export function SetupTCoaRseMain() {
     });
 
     if (picked) {
-      update("af3_dir", picked);
+      setAf3Dir(picked);
       setUploadInfo(null);
       setUploadError(null);
     }
   };
 
-  /**
-   * Send the archive to the page endpoint, which extracts it into the flow
-   * folder and answers with the folder the pipeline should run on.
-   */
+  /** Point the pipeline at the example set shipped with TCoaRse. */
+  const loadExampleSet = () => {
+    if (!exampleSet || !exampleOffered) {
+      return;
+    }
+
+    setSettings((current) => ({
+      ...current,
+      af3_dir: exampleSet.af3_dir,
+      af3_source: "example",
+    }));
+    setArchive(null);
+    setUploadError(null);
+    setUploadInfo(`Using the example set (${exampleSet.folders} TCRs)`);
+  };
+
   /**
    * Send the archive to the page endpoint, which extracts it into the flow
    * folder and answers with the folder the pipeline should run on.
@@ -142,6 +188,17 @@ export function SetupTCoaRseMain() {
    */
   const uploadArchive = () => {
     if (!archive) {
+      return;
+    }
+
+    // Refused here so a too-large archive is not sent in full only for the
+    // server to reject it
+    if (archive.size > MAX_ARCHIVE_BYTES) {
+      setUploadInfo(null);
+      setUploadError(
+        `The archive is ${formatBytes(archive.size)}, above the 3 GB limit. ` +
+          "Put the predictions on the machine running Horus and browse to the folder instead.",
+      );
       return;
     }
 
@@ -190,7 +247,7 @@ export function SetupTCoaRseMain() {
         return;
       }
 
-      update("af3_dir", data.af3_dir ?? "");
+      setAf3Dir(data.af3_dir ?? "");
       setUploadInfo(
         `Extracted ${data.folders} folders` +
           (data.sample?.length ? ` (${data.sample.join(", ")}...)` : "")
@@ -313,7 +370,7 @@ export function SetupTCoaRseMain() {
               description="Folder holding the AlphaFold3 predictions, one subfolder per TCR."
               placeholder="/path/to/af3_outputs"
               value={settings.af3_dir}
-              onChange={(event) => update("af3_dir", event.currentTarget.value)}
+              onChange={(event) => setAf3Dir(event.currentTarget.value)}
             />
             <Button
               variant="default"
@@ -322,18 +379,34 @@ export function SetupTCoaRseMain() {
             >
               Browse...
             </Button>
+            {exampleOffered && exampleSet && (
+              <Button
+                variant="light"
+                leftSection={<IconFlask size={16} />}
+                onClick={loadExampleSet}
+                disabled={busy}
+              >
+                Load example set
+              </Button>
+            )}
           </Group>
 
           <Text size="xs" c="dimmed">
             Browse picks a folder on the machine running Horus. Upload an
             archive instead when the predictions live somewhere else.
+            {exampleOffered &&
+              exampleSet &&
+              ` Load example set uses the ${exampleSet.folders} TCRs shipped with TCoaRse on this server.`}
+            {exampleSet &&
+              !exampleOffered &&
+              " The example set is only available when the block runs on Local."}
           </Text>
 
           <Group align="flex-end" gap="xs" wrap="nowrap">
             <FileInput
               style={{ flex: 1 }}
               label="Or upload an archive"
-              description="A .tar, .tar.gz, .tgz or .zip of the AF3 outputs folder."
+              description="A .tar, .tar.gz, .tgz or .zip of the AF3 outputs folder, up to 3 GB (3.5 GB once unpacked)."
               placeholder="Choose an archive..."
               accept=".tar,.tar.gz,.tgz,.tar.bz2,.tar.xz,.zip"
               value={archive}
