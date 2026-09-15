@@ -143,15 +143,22 @@ def upload_af3():
     import shutil
 
     from flask import jsonify, request
+    from werkzeug.exceptions import RequestEntityTooLarge
 
-    # Checked before request.files is touched: reading it parses, and spools
-    # to disk, the whole body. Only a coarse check, as the request is bigger
-    # than the archive; the exact limit is applied to the file below.
-    if (request.content_length or 0) > MAX_ARCHIVE_BYTES + REQUEST_OVERHEAD_BYTES:
+    # Bound how much of the request is read before request.files parses, and
+    # spools to disk, the body. Set on the request, Werkzeug refuses a longer
+    # Content-Length up front and, for a chunked upload that sends no length at
+    # all, stops reading once the limit is passed. Checking content_length by
+    # hand misses that second case, which let the whole body be spooled first.
+    # The allowance is for the form around the archive; the exact limit is
+    # applied to the file below.
+    request.max_content_length = MAX_ARCHIVE_BYTES + REQUEST_OVERHEAD_BYTES
+
+    try:
+        archive = request.files.get("archive")
+        flow_path = request.form.get("flow_path")
+    except RequestEntityTooLarge:
         return jsonify({"ok": False, "msg": MAX_ARCHIVE_MSG}), 413
-
-    archive = request.files.get("archive")
-    flow_path = request.form.get("flow_path")
 
     if archive is None or not archive.filename:
         return jsonify({"ok": False, "msg": "No archive was uploaded"}), 400

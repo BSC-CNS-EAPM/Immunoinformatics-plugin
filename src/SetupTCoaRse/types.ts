@@ -23,6 +23,13 @@ export type TCoaRseSettings = {
    */
   accepted_non_commercial: boolean;
   accepted_af3_terms: boolean;
+
+  /**
+   * "example" when the AF3 folder is the example set on the machine running
+   * Horus. The block refuses to run it on any other remote, where the folder
+   * does not exist.
+   */
+  af3_source: "" | "example";
 };
 
 /**
