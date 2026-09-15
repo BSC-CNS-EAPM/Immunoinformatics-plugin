@@ -28,6 +28,31 @@ ARCHIVE_SUFFIXES = (".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".tar", ".zip")
 
 UPLOAD_DIR_NAME = "af3_upload"
 
+# Largest archive the upload endpoint accepts. The page refuses bigger files
+# before sending them; this is what enforces it for any other client.
+MAX_ARCHIVE_BYTES = 3 * 1024**3
+
+MAX_ARCHIVE_MSG = (
+    "The archive is larger than 3 GB. Put the predictions on the machine "
+    "running Horus and browse to the folder instead."
+)
+
+# Largest total size the archive may unpack to. A small archive can still
+# expand to fill the disk, so the members are added up before anything is
+# written.
+MAX_EXTRACTED_BYTES = int(3.5 * 1024**3)
+
+
+def _check_extracted_size(sizes: typing.Iterable[int]) -> None:
+    """
+    Refuse an archive whose members add up to more than MAX_EXTRACTED_BYTES.
+    """
+    if sum(sizes) > MAX_EXTRACTED_BYTES:
+        raise ValueError(
+            "The archive unpacks to more than 3.5 GB. Put the predictions on the "
+            "machine running Horus and browse to the folder instead."
+        )
+
 
 def _is_within(directory: str, target: str) -> bool:
     """
@@ -52,6 +77,10 @@ def _safe_extract_zip(archive, destination: str) -> None:
             ):
                 raise ValueError(f"The archive holds an unsafe path: '{member}'")
 
+        # The declared sizes can be relied on: zipfile stops reading a member
+        # at its declared size and fails the CRC check if the data is longer
+        _check_extracted_size(info.file_size for info in zip_file.infolist())
+
         zip_file.extractall(destination)
 
 
@@ -74,6 +103,10 @@ def _safe_extract_tar(archive, destination: str) -> None:
 
             if member.issym() or member.islnk():
                 raise ValueError(f"The archive holds a link: '{member.name}'")
+
+        # Compression wraps the whole tar stream, so each member's size is the
+        # number of bytes it really writes
+        _check_extracted_size(member.size for member in tar_file.getmembers())
 
         tar_file.extractall(destination)
 
@@ -104,11 +137,25 @@ def upload_af3():
 
     from flask import jsonify, request
 
+    # Checked before request.files is touched: reading it parses, and spools
+    # to disk, the whole body
+    if (request.content_length or 0) > MAX_ARCHIVE_BYTES:
+        return jsonify({"ok": False, "msg": MAX_ARCHIVE_MSG}), 413
+
     archive = request.files.get("archive")
     flow_path = request.form.get("flow_path")
 
     if archive is None or not archive.filename:
         return jsonify({"ok": False, "msg": "No archive was uploaded"}), 400
+
+    # The request length is not always sent (chunked uploads), so measure the
+    # file itself as well
+    archive.stream.seek(0, os.SEEK_END)
+    archive_size = archive.stream.tell()
+    archive.stream.seek(0)
+
+    if archive_size > MAX_ARCHIVE_BYTES:
+        return jsonify({"ok": False, "msg": MAX_ARCHIVE_MSG}), 413
 
     filename = os.path.basename(archive.filename)
     suffix = next(

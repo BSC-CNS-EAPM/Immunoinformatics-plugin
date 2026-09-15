@@ -63,6 +63,9 @@ const DEFAULTS: TCoaRseSettings = {
   accepted_af3_terms: false,
 };
 
+/** Largest archive the upload endpoint accepts (MAX_ARCHIVE_BYTES there). */
+const MAX_ARCHIVE_BYTES = 3 * 1024 ** 3;
+
 /** Bytes as the closest readable unit, e.g. "412.3 MB". */
 function formatBytes(bytes: number): string {
   const units = ["B", "kB", "MB", "GB"];
@@ -142,6 +145,17 @@ export function SetupTCoaRseMain() {
    */
   const uploadArchive = () => {
     if (!archive) {
+      return;
+    }
+
+    // Refused here so a too-large archive is not sent in full only for the
+    // server to reject it
+    if (archive.size > MAX_ARCHIVE_BYTES) {
+      setUploadInfo(null);
+      setUploadError(
+        `The archive is ${formatBytes(archive.size)}, above the 3 GB limit. ` +
+          "Put the predictions on the machine running Horus and browse to the folder instead.",
+      );
       return;
     }
 
@@ -333,7 +347,7 @@ export function SetupTCoaRseMain() {
             <FileInput
               style={{ flex: 1 }}
               label="Or upload an archive"
-              description="A .tar, .tar.gz, .tgz or .zip of the AF3 outputs folder."
+              description="A .tar, .tar.gz, .tgz or .zip of the AF3 outputs folder, up to 3 GB (3.5 GB once unpacked)."
               placeholder="Choose an archive..."
               accept=".tar,.tar.gz,.tgz,.tar.bz2,.tar.xz,.zip"
               value={archive}
