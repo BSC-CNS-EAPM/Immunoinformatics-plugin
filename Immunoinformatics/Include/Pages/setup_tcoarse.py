@@ -241,3 +241,95 @@ upload_af3_endpoint = PluginEndpoint(
 )
 
 setup_tcoarse_page.addEndpoint(upload_af3_endpoint)
+
+
+# ==========================#
+# Example set
+# ==========================#
+EXAMPLE_SET_DIR_NAME = "examples"
+
+
+def _af3_model_folders(af3_dir: str) -> typing.List[str]:
+    """
+    The subfolders of `af3_dir` holding AlphaFold3 models, in the layout the
+    Copy Models step reads: <tcr>/seed-*/*_model.cif.
+    """
+    import glob
+
+    return [
+        name
+        for name in sorted(os.listdir(af3_dir))
+        if os.path.isdir(os.path.join(af3_dir, name))
+        and glob.glob(os.path.join(af3_dir, name, "seed-*", "*_model.cif"))
+    ]
+
+
+def _describe_example_set(tcoarse_dir: typing.Optional[str]) -> dict:
+    """
+    Whether the example set is usable from `tcoarse_dir`, and where it is.
+
+    Kept apart from the endpoint so it can be checked without a running Horus.
+    """
+    if not tcoarse_dir:
+        return {
+            "ok": True,
+            "available": False,
+            "msg": "The TCoaRse installation folder is not configured",
+        }
+
+    af3_dir = os.path.join(str(tcoarse_dir).strip(), EXAMPLE_SET_DIR_NAME)
+
+    if not os.path.isdir(af3_dir):
+        return {"ok": True, "available": False, "msg": f"'{af3_dir}' does not exist"}
+
+    folders = _af3_model_folders(af3_dir)
+
+    if not folders:
+        return {
+            "ok": True,
+            "available": False,
+            "msg": f"'{af3_dir}' holds no AlphaFold3 models",
+        }
+
+    return {
+        "ok": True,
+        "available": True,
+        "af3_dir": af3_dir,
+        "folders": len(folders),
+        "sample": folders[:5],
+    }
+
+
+def example_set():
+    """
+    Where the TCoaRse example set is on the machine running Horus, if it is there.
+
+    The examples ship with the TCoaRse-nf checkout, so the folder is resolved
+    from the configured TCoaRse installation instead of being hardcoded. That
+    finds it on whichever machine the plugin is set up on -- perry, for the
+    shared Horus server -- and reports it as unavailable anywhere else, so the
+    page only offers it where it works.
+    """
+    from flask import jsonify
+
+    try:
+        from App import AppDelegate  # type: ignore
+
+        config = AppDelegate().server.pluginManager.getPluginConfig("immuno", "Local")
+    except Exception as error:  # pylint: disable=broad-exception-caught
+        return jsonify(
+            {
+                "ok": True,
+                "available": False,
+                "msg": f"Could not read the TCoaRse configuration: {error}",
+            }
+        )
+
+    return jsonify(_describe_example_set(config.get("tcoarse_dir")))
+
+
+example_set_endpoint = PluginEndpoint(
+    url="/tcoarse_api/example_set/", methods=["GET"], function=example_set
+)
+
+setup_tcoarse_page.addEndpoint(example_set_endpoint)

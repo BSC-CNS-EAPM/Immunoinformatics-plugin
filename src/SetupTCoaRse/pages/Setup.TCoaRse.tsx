@@ -27,6 +27,7 @@ import {
   IconAlertTriangle,
   IconArrowUpRight,
   IconCircleCheck,
+  IconFlask,
   IconFolderOpen,
   IconInfoCircle,
   IconLicense,
@@ -89,6 +90,24 @@ export function SetupTCoaRseMain() {
   );
   const [sent, setSent] = useState(0);
   const uploadRequest = useRef<XMLHttpRequest | null>(null);
+  const [exampleSet, setExampleSet] = useState<{
+    af3_dir: string;
+    folders: number;
+  } | null>(null);
+
+  // The example set ships with the TCoaRse checkout of the machine running
+  // Horus, so it only exists where the plugin is set up with one (perry). Ask
+  // the server, and only offer it when it is there.
+  useEffect(() => {
+    fetch("tcoarse_api/example_set/")
+      .then((response) => response.json())
+      .then((data) => {
+        if (data?.available && data.af3_dir) {
+          setExampleSet({ af3_dir: data.af3_dir, folders: data.folders });
+        }
+      })
+      .catch(() => setExampleSet(null));
+  }, []);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadInfo, setUploadInfo] = useState<string | null>(null);
 
@@ -134,6 +153,18 @@ export function SetupTCoaRseMain() {
    * Send the archive to the page endpoint, which extracts it into the flow
    * folder and answers with the folder the pipeline should run on.
    */
+  /** Point the pipeline at the example set shipped with TCoaRse. */
+  const loadExampleSet = () => {
+    if (!exampleSet) {
+      return;
+    }
+
+    update("af3_dir", exampleSet.af3_dir);
+    setArchive(null);
+    setUploadError(null);
+    setUploadInfo(`Using the example set (${exampleSet.folders} TCRs)`);
+  };
+
   /**
    * Send the archive to the page endpoint, which extracts it into the flow
    * folder and answers with the folder the pipeline should run on.
@@ -336,11 +367,23 @@ export function SetupTCoaRseMain() {
             >
               Browse...
             </Button>
+            {exampleSet && (
+              <Button
+                variant="light"
+                leftSection={<IconFlask size={16} />}
+                onClick={loadExampleSet}
+                disabled={busy}
+              >
+                Load example set
+              </Button>
+            )}
           </Group>
 
           <Text size="xs" c="dimmed">
             Browse picks a folder on the machine running Horus. Upload an
             archive instead when the predictions live somewhere else.
+            {exampleSet &&
+              ` Load example set uses the ${exampleSet.folders} TCRs shipped with TCoaRse on this server.`}
           </Text>
 
           <Group align="flex-end" gap="xs" wrap="nowrap">
