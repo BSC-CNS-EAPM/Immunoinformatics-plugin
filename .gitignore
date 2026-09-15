@@ -145,5 +145,7 @@ Immunoinformatics/Pages
 !Immunoinformatics/Pages/*.pdf
 
 Flows
+# ...except the presets the plugin ships, which sit in its own Flows folder
+!Immunoinformatics/Flows/
 
 *.hp

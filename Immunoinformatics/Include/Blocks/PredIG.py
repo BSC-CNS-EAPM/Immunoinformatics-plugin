@@ -892,4 +892,5 @@ predigBlock = PluginBlock(
     # ],
     inputs=[input_yaml_variable],
     outputs=[outputPredIG],
+    category="PredIG",
 )

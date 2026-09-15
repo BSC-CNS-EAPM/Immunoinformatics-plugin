@@ -16,8 +16,10 @@ def checkInstallation(block: PluginConfig):
 
     tapmap_pred_fsa_path = block.variables.get(tapmapPathVariable.id)
     # Check if the path is valid
+    # Warn instead of raising: an exception here aborts the save of every
+    # config that comes after this one (see noahConfig for the details).
     if tapmap_pred_fsa_path is None or not os.path.isfile(tapmap_pred_fsa_path):
-        raise Exception("The tapmap_pred_fsa executable path is not valid")
+        print("Warning: the tapmap_pred_fsa executable path is not valid on this machine.")
 
 
 # Create a plugin configuration for the noah executable

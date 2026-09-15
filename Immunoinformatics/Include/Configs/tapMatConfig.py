@@ -15,8 +15,10 @@ def checkTapMatInstallation(block: PluginConfig):
     print("Verifying TAP matrix file")
 
     mat_path = block.variables.get(tapMatPathVariable.id)
+    # Warn instead of raising: an exception here aborts the save of every
+    # config that comes after this one (see noahConfig for the details).
     if mat_path is None or not os.path.isfile(mat_path):
-        raise Exception("The TAP matrix file path is not valid")
+        print("Warning: the TAP matrix file path is not valid on this machine.")
 
 
 tapMatConfig = PluginConfig(

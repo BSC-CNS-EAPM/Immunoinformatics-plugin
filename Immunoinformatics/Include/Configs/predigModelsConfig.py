@@ -32,8 +32,10 @@ def checkPredigModels(block: PluginConfig):
 
     for var in [predigNeoAModelVariable, predigNonCanModelVariable, predigPathModelVariable]:
         path = block.variables.get(var.id)
+        # Warn instead of raising: an exception here aborts the save of every
+        # config that comes after this one (see noahConfig for the details).
         if path and not os.path.isfile(path):
-            raise Exception(f"The PredIG model path is not valid: {path}")
+            print(f"Warning: the PredIG model path is not valid on this machine: {path}")
 
 
 predigModelsConfig = PluginConfig(
