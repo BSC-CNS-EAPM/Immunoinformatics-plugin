@@ -32,6 +32,13 @@ UPLOAD_DIR_NAME = "af3_upload"
 # before sending them; this is what enforces it for any other client.
 MAX_ARCHIVE_BYTES = 3 * 1024**3
 
+# Slack on the request length check. The request carries the multipart
+# boundaries and the flow_path field besides the archive, so its length is a
+# few hundred bytes more than the file: without this, an archive just under
+# the limit would be refused, with a message claiming it is over. The exact
+# limit is enforced on the file itself once it has been read.
+REQUEST_OVERHEAD_BYTES = 1024**2
+
 MAX_ARCHIVE_MSG = (
     "The archive is larger than 3 GB. Put the predictions on the machine "
     "running Horus and browse to the folder instead."
@@ -138,8 +145,9 @@ def upload_af3():
     from flask import jsonify, request
 
     # Checked before request.files is touched: reading it parses, and spools
-    # to disk, the whole body
-    if (request.content_length or 0) > MAX_ARCHIVE_BYTES:
+    # to disk, the whole body. Only a coarse check, as the request is bigger
+    # than the archive; the exact limit is applied to the file below.
+    if (request.content_length or 0) > MAX_ARCHIVE_BYTES + REQUEST_OVERHEAD_BYTES:
         return jsonify({"ok": False, "msg": MAX_ARCHIVE_MSG}), 413
 
     archive = request.files.get("archive")
@@ -148,8 +156,8 @@ def upload_af3():
     if archive is None or not archive.filename:
         return jsonify({"ok": False, "msg": "No archive was uploaded"}), 400
 
-    # The request length is not always sent (chunked uploads), so measure the
-    # file itself as well
+    # The exact limit, on the archive itself: the request length above includes
+    # the form around it, and is not always sent (chunked uploads)
     archive.stream.seek(0, os.SEEK_END)
     archive_size = archive.stream.tell()
     archive.stream.seek(0)
